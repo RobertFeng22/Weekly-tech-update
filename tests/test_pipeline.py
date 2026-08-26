@@ -1,6 +1,17 @@
+import json
 from datetime import date
 
-from weekly_tech_update.models import Candidate, Category, Evaluation
+import pytest
+from pydantic import ValidationError
+
+from weekly_tech_update.models import (
+    Candidate,
+    CandidateBatch,
+    Category,
+    Evaluation,
+    EvaluationBatch,
+    WeeklyEdition,
+)
 from weekly_tech_update.pipeline import PipelineConfig, apply_hard_gates, weekly_window
 
 
@@ -82,3 +93,15 @@ def test_max_topics_cannot_exceed_three():
     else:
         raise AssertionError("expected max_topics validation to fail")
 
+
+def test_openai_response_schemas_do_not_emit_unsupported_uri_format():
+    for schema_type in (CandidateBatch, EvaluationBatch, WeeklyEdition):
+        schema_json = json.dumps(schema_type.model_json_schema())
+        assert '"format": "uri"' not in schema_json
+
+
+def test_source_urls_still_fail_closed_after_schema_compatibility_change():
+    with pytest.raises(ValidationError, match="absolute HTTP\\(S\\) URL"):
+        candidate(source_urls=["not-a-url"])
+    with pytest.raises(ValidationError, match="must not contain credentials"):
+        candidate(source_urls=["https://user:secret@example.com/source"])

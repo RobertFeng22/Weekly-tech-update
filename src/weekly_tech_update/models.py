@@ -2,8 +2,23 @@ from __future__ import annotations
 
 from datetime import date
 from enum import StrEnum
+from typing import Annotated
+from urllib.parse import urlsplit
 
-from pydantic import BaseModel, Field, HttpUrl, model_validator
+from pydantic import AfterValidator, BaseModel, Field, model_validator
+
+
+def _validate_source_url(value: str) -> str:
+    """Validate URLs without emitting the unsupported JSON Schema `uri` format."""
+    parsed = urlsplit(value)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        raise ValueError("source URL must be an absolute HTTP(S) URL")
+    if parsed.username is not None or parsed.password is not None:
+        raise ValueError("source URL must not contain credentials")
+    return value
+
+
+SourceUrl = Annotated[str, AfterValidator(_validate_source_url)]
 
 
 class Category(StrEnum):
@@ -22,8 +37,8 @@ class Candidate(BaseModel):
     practitioner_value: str = Field(min_length=20)
     concrete_takeaways: list[str] = Field(min_length=1, max_length=6)
     limitations: list[str] = Field(default_factory=list, max_length=6)
-    source_urls: list[HttpUrl] = Field(min_length=1, max_length=8)
-    primary_source_urls: list[HttpUrl] = Field(min_length=1, max_length=5)
+    source_urls: list[SourceUrl] = Field(min_length=1, max_length=8)
+    primary_source_urls: list[SourceUrl] = Field(min_length=1, max_length=5)
 
 
 class CandidateBatch(BaseModel):
@@ -42,8 +57,8 @@ class Evaluation(BaseModel):
     red_flags: list[str] = Field(default_factory=list, max_length=8)
     counter_evidence: list[str] = Field(default_factory=list, max_length=8)
     rationale: str = Field(min_length=30)
-    verified_source_urls: list[HttpUrl] = Field(min_length=1, max_length=10)
-    verified_primary_source_urls: list[HttpUrl] = Field(default_factory=list, max_length=6)
+    verified_source_urls: list[SourceUrl] = Field(min_length=1, max_length=10)
+    verified_primary_source_urls: list[SourceUrl] = Field(default_factory=list, max_length=6)
 
     @property
     def weighted_score(self) -> float:
@@ -76,7 +91,7 @@ class Topic(BaseModel):
     when_to_use: list[str] = Field(min_length=1, max_length=6)
     when_not_to_use: list[str] = Field(min_length=1, max_length=6)
     caveats: list[str] = Field(min_length=1, max_length=8)
-    source_urls: list[HttpUrl] = Field(min_length=1, max_length=10)
+    source_urls: list[SourceUrl] = Field(min_length=1, max_length=10)
     notebooklm_steering_prompt: str = Field(min_length=80)
 
 
@@ -97,4 +112,3 @@ class WeeklyEdition(BaseModel):
 class EvaluatedCandidate(BaseModel):
     candidate: Candidate
     evaluation: Evaluation
-
