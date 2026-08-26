@@ -1,191 +1,798 @@
 {
-  "run": {
-    "mode": "codex_manual_run",
-    "reason": "OPENAI_API_KEY was not available in the local environment",
-    "generated_at": "2026-08-26T12:13:56+08:00",
+  "edition": {
     "window_start": "2026-08-19",
     "window_end": "2026-08-25",
-    "max_topics": 3,
-    "minimum_score": 70.0,
-    "minimum_verified_sources": 2
+    "editorial_note": "本期我优先选择“可直接上手、机制清晰、彼此差异大”的 3 个主题：推理加速、压缩后恢复、以及工作流编排。它们分别对应部署栈的三个常见瓶颈：延迟、模型体积/精度权衡、以及多步骤应用的工程复杂度。需要注意的是，3 个主题都主要来自作者或项目方的一手发布，学习价值高，但不应直接当作普适结论；落地前都应在你自己的模型、负载和运行时上复测。",
+    "topics": [
+      {
+        "candidate_id": "2026-08-20-lfm25-dspark",
+        "title": "DSpark draft checkpoints：把 speculative decoding 变成可部署推理路径",
+        "category": "engineering_practice",
+        "one_sentence_value": "如果你的解码阶段是 memory-bound、且用户体感延迟比纯 tokens/sec 更重要，带有上游运行时支持的 draft-model speculative decoding 是值得优先试验的加速手段。",
+        "why_now": "这次不是单纯论文概念，而是 Liquid AI 直接发布了 DSpark draft checkpoints，并且在 llama.cpp 与 SGLang 中给出 day-one 支持，降低了试验门槛。",
+        "lesson": "机制上，speculative decoding 让一个更小的 draft model 先提出一段候选 token，再由主模型验证并接受其中正确前缀，从而减少昂贵主模型逐 token 解码的次数。它的关键不是“近似输出”，而是在特定实现下保持 greedy output parity，同时用更便宜的预提议路径换取吞吐和延迟改善。真正决定收益的，是 draft 命中率、验证开销、KV/cache 行为，以及你的请求形态是否以 decode 为主。",
+        "hands_on_demo": [
+          "准备一个支持 DSpark 的运行时环境，例如 llama.cpp 或 SGLang，并选用项目方提供的 LFM2.5 主模型与对应 draft checkpoint。",
+          "固定同一组 prompts，先跑不带 speculation 的 baseline，记录 TTFT、每秒输出 token、以及端到端响应时间。",
+          "开启 DSpark speculative decoding，再次运行完全相同的 prompts，比较 tokens/sec 之外的指标，尤其是 function-calling 或 agentic 流程的平均完成时延。",
+          "把输出逐条比对，确认在你的 greedy 配置下是否保持一致；如果业务依赖严格可复现输出，这一步比速度测试更重要。",
+          "逐步扩大 batch size、上下文长度、tool-calling 比例，观察加速是否稳定，顺便检查显存占用和 cache 行为是否出现异常。"
+        ],
+        "when_to_use": [
+          "解码延迟主导总体时延，而不是 prefill 主导。",
+          "agentic 或 function-calling 工作负载，用户更在意完成一次工具调用的等待时间。",
+          "你希望尽量复用现成推理栈，而不是自己实现 speculative decoding。",
+          "边缘端或受限硬件场景，愿意接受少量额外内存换取明显更好延迟。"
+        ],
+        "when_not_to_use": [
+          "工作负载主要是短输出或 prefill-heavy，请求很难从 decode 加速获益。",
+          "你的运行时或硬件后端尚未稳定支持 DSpark 相关路径。",
+          "业务不能接受任何因运行时 bug、cache 交互或版本漂移带来的不确定性。",
+          "你计划直接按宣传中的最佳倍数做容量规划，而没有自己压测。"
+        ],
+        "caveats": [
+          "性能数字来自构建方报告，且集中于一个模型家族与特定运行时。",
+          "已验证有上游 PR，但“可用”不等于“生产成熟”；评估中还提到后续存在 llama.cpp 相关 issue。",
+          "speculative decoding 本身并不新，真正的新意在于可直接使用的 draft checkpoints 与主流运行时集成。"
+        ],
+        "source_urls": [
+          "https://huggingface.co/blog/LiquidAI/lfm25-dspark",
+          "https://github.com/ggml-org/llama.cpp/pull/27383",
+          "https://github.com/sgl-project/sglang/pull/31041",
+          "https://github.com/ggml-org/llama.cpp/issues/27155"
+        ],
+        "notebooklm_steering_prompt": "请基于提供来源，生成一段简洁的 Simplified Chinese Explainer 视频脚本。重点说明：1) DSpark speculative decoding 的工作机制；2) 为什么它能在保持 greedy output parity 的前提下提升吞吐/降低延迟；3) 一个可复现的小型评测 demo（baseline vs DSpark，比较 TTFT、tokens/sec、端到端 latency、function-calling latency）；4) 适用场景与失败场景；5) 所有结论必须严格以来源为依据，不扩展到未验证模型或硬件。"
+      },
+      {
+        "candidate_id": "2026-08-25-qah",
+        "title": "Quantization-Aware Healing：面向“先压缩再 4-bit 量化”的恢复阶段",
+        "category": "valuable_paper",
+        "one_sentence_value": "如果你的部署现实是必须同时做结构压缩和 4-bit 量化，那么把它当作独立优化问题，并加入一个 healing 阶段，可能比直接套普通 QAT 或 naive fine-tuning 更有效。",
+        "why_now": "这项工作直接针对很多生产团队的真实路线：不是单独量化，而是先把模型压小，再做低比特部署。作者报告的亮点案例是 GPT-OSS 120B 压到 60B、再量化到 MXFP4 后，经 healing 在 9 个基准中的 7 个超过其 bf16 对照。",
+        "lesson": "核心机制不是“量化后随便微调一下”，而是把压缩带来的结构变化与 4-bit 量化误差联合看待。也就是说，模型在 compress-then-quantize 后遭遇的是复合退化；QAH 的价值在于显式针对这种复合损伤做恢复。对工程上最重要的启发是：评估对象不该只有原始全尺寸模型，还应比较压缩后的 fp/bf16 基线，因为真正部署时你常常是在多个受限版本之间选最优。评估还指出，这种方法的亮点更多在 recipe，而不是“恢复训练”这一大类思想本身完全新。",
+        "hands_on_demo": [
+          "选一个你已有的 open-weight 模型，先建立 3 个版本：压缩后的 fp/bf16 版、压缩后直接 4-bit 量化版、以及压缩后量化再做 recovery/healing 的版本。",
+          "在同一批 reasoning 或 code-sensitive 任务上做 A/B/C 对比，至少记录准确率或任务成功率，以及显存/吞吐指标。",
+          "重点比较 healing 版相对“压缩后的 fp/bf16 基线”是否恢复甚至超过，而不是只和原始大模型比。",
+          "如果你的预算有限，先在最容易受量化影响的任务上试，例如代码、推理、多步约束生成。",
+          "把训练/恢复时间单独记账；如果恢复成本太高，部署收益可能被抵消。"
+        ],
+        "when_to_use": [
+          "你必须同时做结构压缩与低比特量化，尤其是 4-bit 部署。",
+          "模型能力对代码、推理或细粒度行为较敏感，直接量化后退化明显。",
+          "你有一个明确的 rollout 前恢复窗口，可以接受多一步训练/校准流程。",
+          "你愿意把“压缩+量化”视为独立 recipe 来优化，而不是沿用单纯量化经验。"
+        ],
+        "when_not_to_use": [
+          "你只做普通量化，没有结构压缩，这个 recipe 的额外价值可能有限。",
+          "你的模型、任务或硬件后端与作者案例差异很大，却没有资源做充分验证。",
+          "你需要完全开放、已广泛复现的方法论；当前证据仍以作者报告为主。",
+          "恢复训练成本、专利因素或工程复杂度不符合你的团队约束。"
+        ],
+        "caveats": [
+          "当前最强证据仍集中在作者提供的案例与论文，尚缺少广泛外部复现。",
+          "headline 结果强调的是相对压缩后 bf16 对照的表现，不应误读为普遍超过原始全尺寸模型。",
+          "评估还指出 arXiv 中提到 patent application，这可能影响后续采用激励与开放性判断。"
+        ],
+        "source_urls": [
+          "https://huggingface.co/blog/MultiverseComputingCAI/quantization-aware-healing",
+          "https://arxiv.org/abs/2608.20953"
+        ],
+        "notebooklm_steering_prompt": "请基于提供来源，生成一段简洁的 Simplified Chinese Explainer 视频脚本。重点说明：1) 为什么 compress-then-quantize 是与 plain quantization 不同的问题；2) Quantization-Aware Healing 的核心机制与它试图修复的复合退化；3) 一个小型可复现 demo 设计：比较压缩后 bf16、压缩后直接 4-bit、压缩后 4-bit + healing 三个版本；4) 何时值得使用、何时不该外推；5) 所有结论必须严格引用来源，不夸大其跨架构普适性。"
+      },
+      {
+        "candidate_id": "2026-08-25-gradio-workflow",
+        "title": "`gr.Workflow`：把多步骤 AI 应用直接表示成 typed DAG",
+        "category": "engineering_practice",
+        "one_sentence_value": "对于经常拼装多模型、多步骤、可视化调试流程的团队，`gr.Workflow` 提供了一个“同一份图既是 UI 也是 API”的低胶水代码方案。",
+        "why_now": "它不是一般的单函数 demo，而是把 pipeline 本身提升为一等对象：节点有类型、过程可检查、同一工作流可作为拖拽画布、REST API 和 Hugging Face Space 部署。",
+        "lesson": "机制上，`gr.Workflow` 的关键思想是把 AI app 写成 typed DAG：每个节点代表一步计算或模型调用，边代表数据流。这样做的好处不是理论新颖，而是工程可见性——中间结果可检查、并行分支更自然、UI 与 API 由同一图导出。对教学最有价值的一点是：很多“链式应用”其实不需要先上重型 orchestration，只要把步骤、输入输出类型和依赖关系明确成图，就已经能显著降低调试成本。",
+        "hands_on_demo": [
+          "用 `gr.Workflow` 定义一个最小 3 节点流程：输入文本 -> 摘要 -> 情感分类，确保每一步输出都能在图中看到。",
+          "把其中一个节点替换成并行分支，例如“摘要”和“关键词提取”同时进行，再合并结果到最终展示节点。",
+          "启动本地服务，分别从图形界面运行一次，再通过其 API 调用同一工作流，验证“同图即同接口”的行为。",
+          "故意让中间一个节点输出异常或空值，观察 typed DAG 下的调试体验是否比手写 glue code 更直接。",
+          "最后将工作流按官方路径部署为可分享应用，评估它是否足以支撑你的实际 pipeline，而不是只看 demo 观感。"
+        ],
+        "when_to_use": [
+          "你的应用天然是多步骤 pipeline，且希望中间态可视化、可检查。",
+          "你需要快速把同一流程同时暴露成交互 UI 和 API。",
+          "流程中有简单的并行分支或多模型 fan-out/fan-in。",
+          "团队当前最大的痛点是大量定制 glue code 与调试不透明。"
+        ],
+        "when_not_to_use": [
+          "你需要高度定制的后端 orchestration、复杂状态管理或严苛生产控制。",
+          "你的应用并不是 pipeline-centric，而是深度耦合的业务后端系统。",
+          "你把它误当作完整替代生产编排层，而不是便捷的图式开发/部署层。",
+          "你需要有中立基准证明其生产效率收益；当前更多是功能发布而非对比研究。"
+        ],
+        "caveats": [
+          "这是框架/产品功能发布，不是证明 graph-native UI 一定优于其他编排方式的中立研究。",
+          "DAG 表达 AI app 并非新概念，新意在于 Gradio 将其包装成 `gr.Workflow` 并统一了 UI、API、部署体验。",
+          "是否真能降低复杂生产系统成本，当前仍需团队自行验证。"
+        ],
+        "source_urls": [
+          "https://huggingface.co/blog/gradio-workflow-guide",
+          "https://github.com/huggingface/blog/blob/main/gradio-workflow-guide.md",
+          "https://github.com/gradio-app/gradio/releases?ref=blog.elest.io"
+        ],
+        "notebooklm_steering_prompt": "请基于提供来源，生成一段简洁的 Simplified Chinese Explainer 视频脚本。重点说明：1) `gr.Workflow` 如何用 typed DAG 表达 AI pipeline；2) 为什么“同一工作流即 UI 与 API”能减少 glue code 和提升可调试性；3) 一个最小 demo：输入 -> 摘要 -> 分类，再扩展到并行分支；4) 它适合与不适合的系统类型；5) 所有判断都必须以来源内容为基础，不宣称未经验证的生产收益。"
+      }
+    ]
   },
   "candidates": [
     {
-      "candidate_id": "ai21-independent-search-verifier",
-      "title": "Independent verifier for agentic search candidate pools",
-      "category": "engineering_practice",
-      "published_at": "2026-08-19",
-      "source_urls": ["https://www.ai21.com/blog/you-need-a-verifier/", "https://www.kaggle.com/benchmarks/google/facts"],
-      "primary_source_urls": ["https://www.ai21.com/blog/you-need-a-verifier/"]
-    },
-    {
-      "candidate_id": "asymmetric-structural-conditioning",
-      "title": "Structure for reading, prose for writing",
+      "candidate_id": "2026-08-25-granite-4-2",
+      "title": "Granite 4.2 LLMs: dense reasoning models with native tool-calling and staged agentic RL",
       "category": "valuable_paper",
-      "published_at": "2026-08-21",
-      "source_urls": ["https://arxiv.org/abs/2608.20786", "https://arxiv.org/pdf/2608.20786"],
-      "primary_source_urls": ["https://arxiv.org/abs/2608.20786", "https://arxiv.org/pdf/2608.20786"]
+      "published_at": "2026-08-25",
+      "summary": "IBM published a technical build report for Granite 4.2, a family of 3B/8B/30B dense decoder-only reasoning models trained from scratch and post-trained with a staged RL curriculum. The practically notable part is not just the model release: the post details a reproducible recipe for mixing long-context pretraining, agentic SFT, and environment-specific RL stages for SWE, terminal use, and web search, with OpenAI-format tool calling for deployment compatibility.",
+      "novelty": "Concrete open description of a multi-stage, multi-environment RL pipeline for turning base LLMs into tool-using agents, plus engineering details on corpus composition and deployment interfaces.",
+      "practitioner_value": "Teams building open agents can borrow the curriculum design: normalize data into chat/tool schema, separate foundational RL from agentic RL, and keep a serving interface compatible with mainstream tool-calling stacks.",
+      "concrete_takeaways": [
+        "Use a staged RL curriculum rather than one monolithic RL run: math/code/science/instruction stages, then SWE/terminal/search for agentic behavior.",
+        "Normalize all SFT data into a unified chat+tools format before quality filtering and deduplication.",
+        "Keep serving compatibility high by emitting standard function-calling payloads so the same model plugs into existing agent harnesses.",
+        "Consider a low-effort reasoning mode between full thinking and no-thinking for latency-sensitive requests."
+      ],
+      "limitations": [
+        "This is primarily a builder-authored technical report rather than an independently reviewed paper.",
+        "Some claims are about IBM’s own models and infrastructure, so transferability to other model families may vary."
+      ],
+      "source_urls": [
+        "https://huggingface.co/blog/ibm-granite/granite-4-2"
+      ],
+      "primary_source_urls": [
+        "https://huggingface.co/blog/ibm-granite/granite-4-2"
+      ]
     },
     {
-      "candidate_id": "agentcore-domain-date-filters",
-      "title": "Enforce source and freshness policy in the search tool contract",
-      "category": "practical_trick",
-      "published_at": "2026-08-19",
-      "source_urls": ["https://aws.amazon.com/blogs/machine-learning/domain-and-publish-date-filters-for-web-search-on-agentcore/", "https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway-target-connector-web-search-tool.html"],
-      "primary_source_urls": ["https://aws.amazon.com/blogs/machine-learning/domain-and-publish-date-filters-for-web-search-on-agentcore/", "https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway-target-connector-web-search-tool.html"]
-    },
-    {
-      "candidate_id": "aws-ard-agent-discovery",
-      "title": "AWS support for Agentic Resource Discovery federation",
-      "category": "engineering_practice",
-      "published_at": "2026-08-24",
-      "source_urls": ["https://aws.amazon.com/blogs/machine-learning/agentic-resource-discovery-ard-an-open-specification-for-agent-discovery/", "https://github.com/ards-project/ard-spec", "https://developers.googleblog.com/announcing-the-agentic-resource-discovery-specification/"],
-      "primary_source_urls": ["https://github.com/ards-project/ard-spec"]
-    },
-    {
-      "candidate_id": "netconfarena",
-      "title": "NetConfArena executable benchmark for closed-loop network agents",
+      "candidate_id": "2026-08-25-qah",
+      "title": "Quantization-Aware Healing for compressed 4-bit LLMs",
       "category": "valuable_paper",
-      "published_at": "2026-08-24",
-      "source_urls": ["https://arxiv.org/abs/2608.23179"],
-      "primary_source_urls": ["https://arxiv.org/abs/2608.23179"]
+      "published_at": "2026-08-25",
+      "summary": "Multiverse Computing published a paper/post introducing Quantization-Aware Healing (QAH), aimed at recovering capability after both structural compression and 4-bit quantization. The reported result is especially interesting for deployment engineers: a GPT-OSS 120B compressed to 60B and quantized to MXFP4 reportedly beat its own bf16 counterpart on 7 of 9 benchmarks after healing.",
+      "novelty": "Moves beyond ordinary post-quantization recovery by explicitly targeting the harder compress-then-quantize regime many production teams actually use.",
+      "practitioner_value": "If you ship compressed open-weight models, this suggests a more realistic optimization pipeline: compress, quantize, then heal with quantization-aware recovery instead of assuming standard QAT or naive fine-tuning will recover losses.",
+      "concrete_takeaways": [
+        "Treat structural compression plus quantization as a separate optimization problem from plain quantization.",
+        "Add a healing stage before production rollout for reasoning/code-sensitive models.",
+        "Benchmark healed models against the compressed fp/bf baseline, not only against the original full-size model.",
+        "Prioritize this approach where memory and inference budgets force both pruning/compression and 4-bit deployment."
+      ],
+      "limitations": [
+        "Evidence is from the authors’ own report and one highlighted case study.",
+        "The exact generalization across architectures, tasks, and hardware backends is still uncertain."
+      ],
+      "source_urls": [
+        "https://huggingface.co/blog/MultiverseComputingCAI/quantization-aware-healing"
+      ],
+      "primary_source_urls": [
+        "https://huggingface.co/blog/MultiverseComputingCAI/quantization-aware-healing"
+      ]
     },
     {
-      "candidate_id": "requirements-driven-candidate-sourcing",
-      "title": "Treat vague people search as requirements engineering",
-      "category": "valuable_paper",
-      "published_at": "2026-08-24",
-      "source_urls": ["https://arxiv.org/abs/2608.23501"],
-      "primary_source_urls": ["https://arxiv.org/abs/2608.23501"]
-    },
-    {
-      "candidate_id": "openai-jalapeno-inference-chip",
-      "title": "OpenAI Jalapeño inference chip benchmark disclosure",
+      "candidate_id": "2026-08-25-gradio-workflow",
+      "title": "Gradio ships `gr.Workflow` for graph-native AI pipelines and one-command deployment",
       "category": "engineering_practice",
       "published_at": "2026-08-25",
-      "source_urls": ["https://openai.com/index/the-full-stack-behind-abundant-intelligence/"],
-      "primary_source_urls": ["https://openai.com/index/the-full-stack-behind-abundant-intelligence/"]
+      "summary": "Gradio published `gr.Workflow`, a graph-based way to express multi-step AI applications where the pipeline itself becomes the UI and API. Nodes are typed, intermediate outputs are inspectable, and the same workflow can be served as a drag-and-drop canvas, REST API, and Hugging Face Space.",
+      "novelty": "Pushes beyond single-function demos toward pipeline-first app construction, with debugging and deployment built around the graph rather than custom glue code.",
+      "practitioner_value": "Useful for teams repeatedly wiring model chains, Spaces, and providers together. It can reduce bespoke orchestration code and make intermediate-state debugging much easier.",
+      "concrete_takeaways": [
+        "Represent AI apps as typed DAGs so every step is runnable and inspectable.",
+        "Use the same workflow definition for both interactive debugging and production API exposure.",
+        "Fan out parallel branches in the graph instead of manually managing async orchestration for simple multimodel apps.",
+        "Treat workflow graphs as reusable app artifacts that can be duplicated and deployed quickly."
+      ],
+      "limitations": [
+        "This is a framework feature announcement rather than a neutral benchmarked study.",
+        "Best fit is pipeline-centric apps; lower value for highly customized backend orchestration."
+      ],
+      "source_urls": [
+        "https://huggingface.co/blog/gradio-workflow-guide"
+      ],
+      "primary_source_urls": [
+        "https://huggingface.co/blog/gradio-workflow-guide"
+      ]
     },
     {
-      "candidate_id": "google-agent-governance-report",
-      "title": "Agent security and governance infrastructure report",
+      "candidate_id": "2026-08-21-pwc-search-architecture",
+      "title": "Papers with Code search architecture: strict embedding contracts, split offline/online paths, and bucket-backed updates",
       "category": "engineering_practice",
+      "published_at": "2026-08-21",
+      "summary": "Hugging Face described how it rebuilt semantic search for Papers with Code using Jobs, Buckets, and Inference Endpoints. The post is valuable because it exposes system design choices: use a strict embedding contract, separate throughput-heavy corpus building from latency-sensitive serving, store artifacts in buckets as explicit contracts, and combine hybrid retrieval rather than relying on vector search alone.",
+      "novelty": "A concrete retrieval systems write-up from a production deployment rather than generic RAG advice.",
+      "practitioner_value": "Search, RAG, and internal knowledge teams can directly reuse the architecture pattern for keeping vector corpora fresh without coupling indexing jobs to live serving.",
+      "concrete_takeaways": [
+        "Separate corpus-building pipelines from request-path retrieval infrastructure.",
+        "Use storage artifacts as an explicit interface between offline jobs and online services.",
+        "Pin the full embedding contract, not just the model name, to avoid silent retrieval drift.",
+        "Use hybrid retrieval because lexical plus semantic retrieval is often stronger than either alone.",
+        "Design for cold starts and small vectors as systems-level choices, not just model-level ones."
+      ],
+      "limitations": [
+        "Architecture is described in the context of Hugging Face’s own stack.",
+        "It is a case study, so quantitative tradeoffs may differ for other corpora and latency targets."
+      ],
+      "source_urls": [
+        "https://huggingface.co/blog/pwc-search"
+      ],
+      "primary_source_urls": [
+        "https://huggingface.co/blog/pwc-search"
+      ]
+    },
+    {
+      "candidate_id": "2026-08-20-lfm25-dspark",
+      "title": "Liquid AI releases DSpark draft checkpoints for speculative decoding with day-one llama.cpp and SGLang support",
+      "category": "engineering_practice",
+      "published_at": "2026-08-20",
+      "summary": "Liquid AI published DSpark draft-model checkpoints for multiple LFM2.5 models, adding speculative decoding paths that reportedly improve throughput up to 3.18x on GPU and 2.87x on-device. The release is immediately practical because support was upstreamed to llama.cpp and SGLang, and the post highlights average function-calling latency cuts for agentic workloads.",
+      "novelty": "Turns speculative decoding into a deployable artifact rather than a paper-only idea, with open integration in popular inference stacks.",
+      "practitioner_value": "Inference teams can trial draft-model speculation without inventing their own serving path, especially for edge or agentic deployments where token latency and tool-call turnaround matter.",
+      "concrete_takeaways": [
+        "Use draft-model speculative decoding when decode is memory-bound and latency dominates.",
+        "Measure function-calling latency, not just raw tokens/sec, for agentic deployments.",
+        "Prefer solutions with upstream runtime support to reduce inference-stack maintenance burden.",
+        "Treat a small memory increase as acceptable if it buys materially better end-to-end interaction latency."
+      ],
+      "limitations": [
+        "Performance claims are builder-reported and model-family specific.",
+        "Benefits depend on runtime support and workload shape."
+      ],
+      "source_urls": [
+        "https://huggingface.co/blog/LiquidAI/lfm25-dspark"
+      ],
+      "primary_source_urls": [
+        "https://huggingface.co/blog/LiquidAI/lfm25-dspark"
+      ]
+    },
+    {
+      "candidate_id": "2026-08-24-gemini-release-notes-openai-compat",
+      "title": "Gemini API release notes: support added for Gemini in OpenAI libraries / REST API",
+      "category": "practical_trick",
       "published_at": "2026-08-24",
-      "source_urls": ["https://cloud.google.com/blog/topics/ai-infrastructure/state-of-ai-infrastructure-report-agent-governance-and-security"],
-      "primary_source_urls": ["https://cloud.google.com/blog/topics/ai-infrastructure/state-of-ai-infrastructure-report-agent-governance-and-security"]
+      "summary": "Google’s Gemini API release notes were updated on 2026-08-24 and include a small but useful interoperability change: support for Gemini in the OpenAI libraries / REST API. For working engineers, the key implication is less adapter code when evaluating or dual-sourcing models across vendors.",
+      "novelty": "Not a new model, but a practical compatibility step that lowers switching friction in existing OpenAI-shaped codebases.",
+      "practitioner_value": "Teams can prototype vendor redundancy or comparative evals faster by reusing client abstractions, request schemas, and some tool-calling plumbing with fewer bespoke wrappers.",
+      "concrete_takeaways": [
+        "Audit your model gateway/client layer for assumptions that unnecessarily hard-code one vendor.",
+        "If your app already uses OpenAI-shaped clients, test Gemini through the same interface to reduce migration effort.",
+        "Use this compatibility path for eval harnesses and failover experiments before deeper platform integration."
+      ],
+      "limitations": [
+        "Release notes do not fully specify every compatibility edge case in the retrieved excerpt.",
+        "OpenAI-compatible does not guarantee perfect feature parity across tools, errors, or streaming semantics."
+      ],
+      "source_urls": [
+        "https://ai.google.dev/gemini-api/docs/changelog?authuser=6"
+      ],
+      "primary_source_urls": [
+        "https://ai.google.dev/gemini-api/docs/changelog?authuser=6"
+      ]
     },
     {
-      "candidate_id": "redhat-llm-d-sovereignty",
-      "title": "Scaling agentic AI with llm-d",
+      "candidate_id": "2026-08-20-github-code-quality-actions-path",
+      "title": "GitHub separates Code Quality from code scanning in Actions workflow paths and actors",
       "category": "engineering_practice",
+      "published_at": "2026-08-20",
+      "summary": "GitHub changed GitHub Code Quality runs to use a dedicated workflow path and actor instead of sharing identifiers with code scanning. This is a small operational change, but it matters for AI-assisted DevSecOps stacks because scripts, dashboards, billing reports, and automations that classified runs via the old path now need updates.",
+      "novelty": "A low-level telemetry and workflow identity split that improves operational clarity for teams instrumenting automated code analysis.",
+      "practitioner_value": "If you have analytics, chargeback, policy, or agent automations around Actions security tooling, this prevents silent misclassification and makes quality-vs-security reporting cleaner.",
+      "concrete_takeaways": [
+        "Update Actions usage and billing filters to include the new `dynamic/github-code-quality/codeql` path.",
+        "Stop keying all Code Quality automation off the `github-advanced-security` actor.",
+        "Use the split to build separate dashboards for code-quality remediation and security remediation."
+      ],
+      "limitations": [
+        "This is infrastructure plumbing, so value is concentrated among teams already using GitHub Code Quality.",
+        "Not directly an AI model advance, but relevant to engineering operations around AI-assisted code analysis."
+      ],
+      "source_urls": [
+        "https://github.blog/changelog/2026-08-20-separate-github-actions-path-for-github-code-quality/"
+      ],
+      "primary_source_urls": [
+        "https://github.blog/changelog/2026-08-20-separate-github-actions-path-for-github-code-quality/"
+      ]
+    },
+    {
+      "candidate_id": "2026-08-19-codeql-2263",
+      "title": "CodeQL 2.26.3 improves GitHub Actions queries and JavaScript modeling",
+      "category": "practical_trick",
       "published_at": "2026-08-19",
-      "source_urls": ["https://www.redhat.com/en/blog/channel/red-hat-ai?page=-1"],
-      "primary_source_urls": ["https://www.redhat.com/en/blog/channel/red-hat-ai?page=-1"]
+      "summary": "GitHub released CodeQL 2.26.3 with better GitHub Actions query accuracy and expanded JavaScript/TypeScript/Vue modeling. The concrete engineering value is in the query changes: more precise cache-poisoning and untrusted-checkout traces, improved event classification, and additional remote-flow/source modeling in JS ecosystems.",
+      "novelty": "Incremental but high-leverage static-analysis improvements that directly affect signal quality in automated remediation loops.",
+      "practitioner_value": "Security and platform teams using AI to triage or auto-fix code scanning alerts should expect different alert distributions and can reduce false positives by understanding the updated models and breaking changes.",
+      "concrete_takeaways": [
+        "Re-run or compare baseline scans after upgrading because query semantics changed for GitHub Actions risks.",
+        "Update any custom queries depending on the removed `SelfHostedQuery` module.",
+        "Leverage the new JS modeling for Vue, Sails, and file-based custom models when building organization-specific analysis packs.",
+        "Expect better path explanations for untrusted checkout and cache-poisoning alerts."
+      ],
+      "limitations": [
+        "This is a mature product update, not a new research direction.",
+        "Benefits depend on whether your repos use the affected frameworks and workflow patterns."
+      ],
+      "source_urls": [
+        "https://github.blog/changelog/2026-08-19-codeql-2-26-3-improves-github-actions-queries-and-javascript-modeling/"
+      ],
+      "primary_source_urls": [
+        "https://github.blog/changelog/2026-08-19-codeql-2-26-3-improves-github-actions-queries-and-javascript-modeling/"
+      ]
     },
     {
-      "candidate_id": "vllm-ascend-026-rc1",
-      "title": "vLLM Ascend 0.26.0 release candidate",
+      "candidate_id": "2026-08-17-openhands-v1140-window",
+      "title": "OpenHands v1.14.0: structured error outcomes, Git Sync page, and model-profile validation",
       "category": "engineering_practice",
-      "published_at": "2026-08-24",
-      "source_urls": ["https://github.com/vllm-project/vllm-ascend/issues/14767"],
-      "primary_source_urls": ["https://github.com/vllm-project/vllm-ascend/issues/14767"]
+      "published_at": "2026-08-17",
+      "summary": "Excluded from the requested window. I found an OpenHands release with useful engineering changes, but it was published on 2026-08-17, outside 2026-08-19 through 2026-08-25.",
+      "novelty": "Outside-window item retained here only as a note during curation.",
+      "practitioner_value": "Not eligible for inclusion in the final set for this request.",
+      "concrete_takeaways": [
+        "Do not include items published before 2026-08-19."
+      ],
+      "limitations": [
+        "Outside the requested date range."
+      ],
+      "source_urls": [
+        "https://github.com/OpenHands/docs/issues/733"
+      ],
+      "primary_source_urls": [
+        "https://github.com/OpenHands/docs/issues/733"
+      ]
     }
   ],
   "evaluations": [
     {
-      "candidate_id": "agentcore-domain-date-filters",
-      "scores": {"factual_accuracy": 5, "evidence_strength": 5, "practical_value": 4, "novelty": 3, "transferability": 4, "teachability": 5, "confidence": 5},
-      "weighted_score": 89.2,
-      "decision": "approved",
+      "candidate_id": "2026-08-25-granite-4-2",
+      "factual_accuracy": 4,
+      "evidence_strength": 3,
+      "practical_value": 4,
+      "novelty": 3,
+      "transferability": 4,
+      "teachability": 4,
+      "confidence": 4,
       "red_flags": [],
-      "counter_evidence": ["The feature is AWS-specific and publication metadata can be wrong", "Strict filters can silently reduce recall"],
-      "rationale": "Announcement and developer documentation agree on exact schema and composition semantics; the general policy-enforcement pattern is directly testable."
+      "counter_evidence": [
+        "Primary evidence is a builder-authored technical blog on Hugging Face by the IBM Granite team, not an independent paper or benchmark.",
+        "I verified the staged RL pipeline, unified OpenAI-chat/tool formatting, tool-calling compatibility, low-effort thinking mode, and release date, but not independent performance superiority claims.",
+        "The strongest claims are recipe/design claims; transfer to other model families and stacks is plausible but unproven."
+      ],
+      "rationale": "Verified from the primary source that the post was published on August 25, 2026 and describes Granite 4.2 as 3B/8B/30B dense decoder-only reasoning models trained from scratch, with ~15T-token pretraining, long-context extension, SFT data normalized into a consistent OpenAI Chat format, a multi-stage RL curriculum, low-effort thinking mode, and OpenAI-compatible tool-calling output. That supports the summary’s central engineering claims. What remains uncertain is how novel or superior this is versus other open-agent recipes, because I found no independent evaluation in the provided material. The most important failure mode is over-crediting a vendor technical report as if it were neutral evidence of best practice. ",
+      "verified_source_urls": [
+        "https://huggingface.co/blog/ibm-granite/granite-4-2"
+      ],
+      "verified_primary_source_urls": [
+        "https://huggingface.co/blog/ibm-granite/granite-4-2"
+      ]
     },
     {
-      "candidate_id": "ai21-independent-search-verifier",
-      "scores": {"factual_accuracy": 4, "evidence_strength": 3, "practical_value": 5, "novelty": 4, "transferability": 5, "teachability": 5, "confidence": 3},
-      "weighted_score": 82.8,
-      "decision": "approved",
+      "candidate_id": "2026-08-25-qah",
+      "factual_accuracy": 4,
+      "evidence_strength": 4,
+      "practical_value": 4,
+      "novelty": 3,
+      "transferability": 3,
+      "teachability": 4,
+      "confidence": 4,
       "red_flags": [],
-      "counter_evidence": ["Scores are vendor-reported on roughly 100-question samples", "No complete independent reproduction or released verifier weights were found"],
-      "rationale": "The selection-bottleneck mechanism and metrics are concrete and testable, while the reported absolute scores require replication."
+      "counter_evidence": [
+        "Core empirical evidence is still author-produced: Hugging Face blog plus the authors' arXiv preprint, with no outside replication.",
+        "The headline claim compares against the compressed model's bf16 checkpoint, not necessarily against the original full 120B teacher on most tasks.",
+        "Related older literature already reported post-quantization recovery and occasional parity/improvement over full precision, so the novelty is more in the compress-then-quantize-heal recipe than in the existence of recovery itself.",
+        "arXiv notes a patent application, which is relevant to openness and downstream adoption incentives."
+      ],
+      "rationale": "I verified a primary paper exists within the window: arXiv submission on August 21, 2026, plus the Hugging Face post on August 25, 2026. The paper abstract directly supports the key claim that on a GPT-OSS 120B → 60B → MXFP4 pipeline, the QAH student matches or beats its bf16 source on 7 of 9 benchmarks and reaches a comparable QAT peak about 7x faster while remaining stable. This is stronger than a pure blog announcement because there is an accessible primary paper. What remains uncertain is generalization across architectures, tasks, and hardware, since the evidence centers on one main pipeline. The most important failure mode is practitioners extrapolating a narrow case study into a universal compressed-LLM recipe. ",
+      "verified_source_urls": [
+        "https://huggingface.co/blog/MultiverseComputingCAI/quantization-aware-healing",
+        "https://arxiv.org/abs/2608.20953"
+      ],
+      "verified_primary_source_urls": [
+        "https://huggingface.co/blog/MultiverseComputingCAI/quantization-aware-healing",
+        "https://arxiv.org/abs/2608.20953"
+      ]
     },
     {
-      "candidate_id": "asymmetric-structural-conditioning",
-      "scores": {"factual_accuracy": 4, "evidence_strength": 3, "practical_value": 5, "novelty": 4, "transferability": 4, "teachability": 5, "confidence": 3},
-      "weighted_score": 80.8,
-      "decision": "approved",
+      "candidate_id": "2026-08-25-gradio-workflow",
+      "factual_accuracy": 4,
+      "evidence_strength": 3,
+      "practical_value": 4,
+      "novelty": 3,
+      "transferability": 3,
+      "teachability": 4,
+      "confidence": 4,
       "red_flags": [],
-      "counter_evidence": ["Core paired result is one procurement with n=31 per arm", "Same model family drafted and judged without blinded human scoring"],
-      "rationale": "The paper is unusually candid about limitations and supplies several reproducible engineering hypotheses, but its numerical results are not universal laws."
+      "counter_evidence": [
+        "This is a product/framework feature announcement, not neutral evidence that graph-native workflow UIs are broadly better than existing orchestration patterns.",
+        "I verified existence, date, API/UI behavior, and deployment claims from the blog, but not broad adoption or comparative productivity gains.",
+        "The idea of expressing AI apps as DAGs is not new; the novelty is Gradio packaging it as `gr.Workflow` with integrated UI/API/Space deployment."
+      ],
+      "rationale": "Verified from the primary source that the Gradio post was published on August 25, 2026, is specifically about `gr.Workflow`, and claims that workflows become both interface and API with callable endpoints and deployable examples. The blog includes example Python and HTTP usage and points to official docs, so the practical mechanics are real. What remains uncertain is whether this materially reduces bespoke orchestration cost in nontrivial production systems. The most important failure mode is mistaking a convenient demo/deployment layer for a full substitute for more customized backend orchestration. ",
+      "verified_source_urls": [
+        "https://huggingface.co/blog/gradio-workflow-guide",
+        "https://github.com/huggingface/blog/blob/main/gradio-workflow-guide.md",
+        "https://github.com/gradio-app/gradio/releases?ref=blog.elest.io"
+      ],
+      "verified_primary_source_urls": [
+        "https://huggingface.co/blog/gradio-workflow-guide"
+      ]
     },
     {
-      "candidate_id": "aws-ard-agent-discovery",
-      "scores": {"factual_accuracy": 5, "evidence_strength": 4, "practical_value": 4, "novelty": 2, "transferability": 4, "teachability": 4, "confidence": 4},
-      "weighted_score": 79.6,
-      "decision": "rejected",
-      "red_flags": ["The ARD specification and launch predate this weekly window; the new item is AWS support, not a new standard"],
-      "counter_evidence": ["Specification is still v0.9 draft and media type registrations are pending"],
-      "rationale": "Architecturally useful, but it fails the weekly-newness gate and risks presenting an old draft spec as a new release."
+      "candidate_id": "2026-08-21-pwc-search-architecture",
+      "factual_accuracy": 4,
+      "evidence_strength": 3,
+      "practical_value": 4,
+      "novelty": 3,
+      "transferability": 4,
+      "teachability": 4,
+      "confidence": 4,
+      "red_flags": [],
+      "counter_evidence": [
+        "This is a case study built around Hugging Face's own managed services, so some design choices may reflect product fit rather than universal architecture truth.",
+        "Hybrid retrieval and offline/online separation are established patterns; the value here is concrete production detail, not deep novelty.",
+        "Quantitative tradeoffs are limited in the post, so expected gains for other corpora/SLAs remain uncertain."
+      ],
+      "rationale": "Verified from the primary source that the post was published on August 21, 2026 and explicitly describes the architecture pattern claimed in the candidate: strict embedding contracts, offline Jobs for corpus builds, Buckets as the durable handoff, Inference Endpoints on the request path, and hybrid retrieval with fallback behavior. Those claims are directly supported. What remains uncertain is how much of the operational benefit depends on Hugging Face infrastructure and the specific Papers with Code corpus. The most important failure mode is readers copying the vendor stack choices rather than the more general contracts-and-separation principles. ",
+      "verified_source_urls": [
+        "https://huggingface.co/blog/pwc-search"
+      ],
+      "verified_primary_source_urls": [
+        "https://huggingface.co/blog/pwc-search"
+      ]
     },
     {
-      "candidate_id": "netconfarena",
-      "scores": {"factual_accuracy": 4, "evidence_strength": 3, "practical_value": 3, "novelty": 4, "transferability": 3, "teachability": 3, "confidence": 3},
-      "weighted_score": 66.8,
-      "decision": "rejected",
-      "red_flags": ["Below minimum score and only one primary source was verified"],
-      "counter_evidence": ["Network configuration is a narrow domain and benchmark reproducibility was not checked"],
-      "rationale": "Executable closed-loop evaluation is promising, but insufficiently verified for this edition."
+      "candidate_id": "2026-08-20-lfm25-dspark",
+      "factual_accuracy": 4,
+      "evidence_strength": 4,
+      "practical_value": 4,
+      "novelty": 3,
+      "transferability": 3,
+      "teachability": 4,
+      "confidence": 4,
+      "red_flags": [],
+      "counter_evidence": [
+        "Performance numbers are builder-reported from one model family and specific runtimes/hardware.",
+        "The 'day-one support' claim is substantiated by merged runtime PRs, but that does not guarantee polished production stability; I found at least one later llama.cpp DSpark-related issue reporting VRAM leak/cache interaction problems.",
+        "Speculative decoding itself is not new; the practical novelty is released draft checkpoints plus upstream runtime support."
+      ],
+      "rationale": "Verified from the Liquid AI primary post that it was published on August 20, 2026 and claims up to 3.18x GPU throughput, up to 2.87x on-device, 57% average function-calling latency reduction for LFM2.5-2.6B, and exact greedy-output parity by construction. I also verified primary integration evidence that llama.cpp PR #27383 was merged on August 20, 2026, and found the referenced SGLang PR #31041, supporting the interoperability/deployability angle. What remains uncertain is robustness across workloads and maturity of the upstream implementations. The most important failure mode is teams budgeting around best-case speedups without accounting for workload variance and runtime bugs. ",
+      "verified_source_urls": [
+        "https://huggingface.co/blog/LiquidAI/lfm25-dspark",
+        "https://github.com/ggml-org/llama.cpp/pull/27383",
+        "https://github.com/sgl-project/sglang/pull/31041",
+        "https://github.com/ggml-org/llama.cpp/issues/27155"
+      ],
+      "verified_primary_source_urls": [
+        "https://huggingface.co/blog/LiquidAI/lfm25-dspark"
+      ]
     },
     {
-      "candidate_id": "requirements-driven-candidate-sourcing",
-      "scores": {"factual_accuracy": 4, "evidence_strength": 3, "practical_value": 3, "novelty": 4, "transferability": 3, "teachability": 3, "confidence": 2},
-      "weighted_score": 65.6,
-      "decision": "rejected",
-      "red_flags": ["Below minimum score and only the paper was verified"],
-      "counter_evidence": ["Evidence-grounded judging and union-pool recall may not transfer outside people sourcing"],
-      "rationale": "Interesting requirements-engineering framing, but the reported breadth and recall claims need more scrutiny."
+      "candidate_id": "2026-08-24-gemini-release-notes-openai-compat",
+      "factual_accuracy": 1,
+      "evidence_strength": 1,
+      "practical_value": 2,
+      "novelty": 1,
+      "transferability": 2,
+      "teachability": 2,
+      "confidence": 5,
+      "red_flags": [
+        "The claimed publication/update date is contradicted by the primary source. The changelog entry 'Added support for Gemini in the OpenAI libraries / REST API' appears under November 8, 2024, not August 24, 2026.",
+        "The candidate frames this as an August 24, 2026 release-note update within the evaluation window, but I could not verify that from the primary source."
+      ],
+      "counter_evidence": [
+        "The underlying compatibility feature is real, just far older than claimed in this candidate.",
+        "Without a verifiable in-window change, this is not eligible for the requested window even if practically useful."
+      ],
+      "rationale": "I verified on Google's primary Gemini API changelog that the relevant entry, 'Added support for Gemini in the OpenAI libraries / REST API,' is listed under November 8, 2024. I did not find evidence that this compatibility was newly added on August 24, 2026. That directly contradicts the candidate's central timing claim for inclusion in the August 19-25, 2026 window. The most important failure mode is publishing an old feature as if it were a current-window release. ",
+      "verified_source_urls": [
+        "https://ai.google.dev/gemini-api/docs/changelog?authuser=6"
+      ],
+      "verified_primary_source_urls": [
+        "https://ai.google.dev/gemini-api/docs/changelog?authuser=6"
+      ]
     },
     {
-      "candidate_id": "google-agent-governance-report",
-      "scores": {"factual_accuracy": 4, "evidence_strength": 2, "practical_value": 3, "novelty": 2, "transferability": 4, "teachability": 3, "confidence": 3},
-      "weighted_score": 60.0,
-      "decision": "rejected",
-      "red_flags": ["Marketing/report framing dominates concrete new engineering evidence"],
-      "counter_evidence": ["Survey percentages do not establish effectiveness of the proposed controls"],
-      "rationale": "Important topic, but not enough reproducible mechanism for a top-three teaching slot."
+      "candidate_id": "2026-08-20-github-code-quality-actions-path",
+      "factual_accuracy": 5,
+      "evidence_strength": 4,
+      "practical_value": 3,
+      "novelty": 2,
+      "transferability": 3,
+      "teachability": 4,
+      "confidence": 5,
+      "red_flags": [],
+      "counter_evidence": [
+        "This is narrow operational plumbing, valuable mainly to teams already using GitHub Code Quality and downstream automation around Actions metadata.",
+        "Evidence is from GitHub's own changelog, but for this kind of platform change that is the appropriate primary source.",
+        "Novelty is low; this is an incremental telemetry/identity change, not a broader practice breakthrough."
+      ],
+      "rationale": "Verified from GitHub's primary changelog that the change is in-window and real: Code Quality runs now use `dynamic/github-code-quality/codeql` and actor `github-code-quality` instead of sharing the code-scanning path/actor, and GitHub explicitly tells users to update reports, dashboards, and workflow filters. That fully supports the candidate's operational takeaway. What remains uncertain is how many teams are affected. The most important failure mode is overestimating its audience; this is useful but specialized maintenance work, not a widely applicable AI engineering advance. ",
+      "verified_source_urls": [
+        "https://github.blog/changelog/2026-08-20-separate-github-actions-path-for-github-code-quality/"
+      ],
+      "verified_primary_source_urls": [
+        "https://github.blog/changelog/2026-08-20-separate-github-actions-path-for-github-code-quality/"
+      ]
     },
     {
-      "candidate_id": "redhat-llm-d-sovereignty",
-      "scores": {"factual_accuracy": 4, "evidence_strength": 2, "practical_value": 3, "novelty": 2, "transferability": 3, "teachability": 3, "confidence": 3},
-      "weighted_score": 58.0,
-      "decision": "rejected",
-      "red_flags": ["Vendor narrative with insufficient independent production evidence"],
-      "counter_evidence": ["Operational value depends heavily on Kubernetes and accelerator environment"],
-      "rationale": "Potentially useful for a dedicated inference-infrastructure edition, but not strong enough here."
+      "candidate_id": "2026-08-19-codeql-2263",
+      "factual_accuracy": 5,
+      "evidence_strength": 4,
+      "practical_value": 4,
+      "novelty": 2,
+      "transferability": 3,
+      "teachability": 4,
+      "confidence": 5,
+      "red_flags": [],
+      "counter_evidence": [
+        "This is an incremental mature-product release, not a novel research contribution.",
+        "Benefits depend on using the affected languages/frameworks and GitHub Actions query packs.",
+        "Evidence is primarily GitHub's own changelog, which is appropriate for product release details but not independent validation of downstream alert quality."
+      ],
+      "rationale": "Verified from GitHub's primary changelog that CodeQL 2.26.3 was announced on August 19, 2026 and includes the specific changes claimed: removal of `codeql.actions.security.SelfHostedQuery`, improved GitHub Actions query paths for cache-poisoning/untrusted-checkout, recognition of `merge_group` untrusted data, and added JS/TS/Vue modeling including Vue Composition API helpers and Vue Router flow sources. That strongly supports the candidate's concrete takeaways about rescanning, alert distribution changes, and custom-query maintenance. The main uncertainty is the magnitude of practical effect repo-to-repo. The most important failure mode is treating all scan deltas as product improvement rather than checking for workflow-specific regressions. ",
+      "verified_source_urls": [
+        "https://github.blog/changelog/2026-08-19-codeql-2-26-3-improves-github-actions-queries-and-javascript-modeling/"
+      ],
+      "verified_primary_source_urls": [
+        "https://github.blog/changelog/2026-08-19-codeql-2-26-3-improves-github-actions-queries-and-javascript-modeling/"
+      ]
     },
     {
-      "candidate_id": "openai-jalapeno-inference-chip",
-      "scores": {"factual_accuracy": 4, "evidence_strength": 2, "practical_value": 2, "novelty": 4, "transferability": 1, "teachability": 2, "confidence": 2},
-      "weighted_score": 51.6,
-      "decision": "rejected",
-      "red_flags": ["Benchmark disclosure is not actionable for external engineers and lacks independent reproduction"],
-      "counter_evidence": ["Comparability and full benchmark configuration were not established"],
-      "rationale": "Newsworthy infrastructure disclosure, but low near-term practitioner value."
-    },
-    {
-      "candidate_id": "vllm-ascend-026-rc1",
-      "scores": {"factual_accuracy": 4, "evidence_strength": 3, "practical_value": 2, "novelty": 2, "transferability": 1, "teachability": 2, "confidence": 3},
-      "weighted_score": 52.0,
-      "decision": "rejected",
-      "red_flags": ["Release candidate and hardware-specific; no substantive release-note evaluation completed"],
-      "counter_evidence": ["RC status implies breaking changes and unresolved feedback"],
-      "rationale": "Relevant only to a narrow Ascend deployment audience and premature for general teaching."
+      "candidate_id": "2026-08-17-openhands-v1140-window",
+      "factual_accuracy": 5,
+      "evidence_strength": 5,
+      "practical_value": 1,
+      "novelty": 1,
+      "transferability": 1,
+      "teachability": 1,
+      "confidence": 5,
+      "red_flags": [
+        "Outside evaluation window: the primary release is dated August 17, 2026, before the allowed window of 2026-08-19 through 2026-08-25."
+      ],
+      "counter_evidence": [],
+      "rationale": "I verified from the referenced OpenHands docs issue and the actual GitHub release page that v1.14.0 was published on August 17, 2026, outside the requested window. The candidate explicitly says it is excluded, and that statement is correct. The most important failure mode would be accidental inclusion despite the out-of-window date. ",
+      "verified_source_urls": [
+        "https://github.com/OpenHands/docs/issues/733",
+        "https://github.com/OpenHands/OpenHands/releases/tag/v1.14.0"
+      ],
+      "verified_primary_source_urls": [
+        "https://github.com/OpenHands/docs/issues/733"
+      ]
     }
   ],
-  "selected_topic_ids": [
-    "ai21-independent-search-verifier",
-    "asymmetric-structural-conditioning",
-    "agentcore-domain-date-filters"
-  ]
+  "approved": [
+    {
+      "candidate": {
+        "candidate_id": "2026-08-25-qah",
+        "title": "Quantization-Aware Healing for compressed 4-bit LLMs",
+        "category": "valuable_paper",
+        "published_at": "2026-08-25",
+        "summary": "Multiverse Computing published a paper/post introducing Quantization-Aware Healing (QAH), aimed at recovering capability after both structural compression and 4-bit quantization. The reported result is especially interesting for deployment engineers: a GPT-OSS 120B compressed to 60B and quantized to MXFP4 reportedly beat its own bf16 counterpart on 7 of 9 benchmarks after healing.",
+        "novelty": "Moves beyond ordinary post-quantization recovery by explicitly targeting the harder compress-then-quantize regime many production teams actually use.",
+        "practitioner_value": "If you ship compressed open-weight models, this suggests a more realistic optimization pipeline: compress, quantize, then heal with quantization-aware recovery instead of assuming standard QAT or naive fine-tuning will recover losses.",
+        "concrete_takeaways": [
+          "Treat structural compression plus quantization as a separate optimization problem from plain quantization.",
+          "Add a healing stage before production rollout for reasoning/code-sensitive models.",
+          "Benchmark healed models against the compressed fp/bf baseline, not only against the original full-size model.",
+          "Prioritize this approach where memory and inference budgets force both pruning/compression and 4-bit deployment."
+        ],
+        "limitations": [
+          "Evidence is from the authors’ own report and one highlighted case study.",
+          "The exact generalization across architectures, tasks, and hardware backends is still uncertain."
+        ],
+        "source_urls": [
+          "https://huggingface.co/blog/MultiverseComputingCAI/quantization-aware-healing"
+        ],
+        "primary_source_urls": [
+          "https://huggingface.co/blog/MultiverseComputingCAI/quantization-aware-healing"
+        ]
+      },
+      "evaluation": {
+        "candidate_id": "2026-08-25-qah",
+        "factual_accuracy": 4,
+        "evidence_strength": 4,
+        "practical_value": 4,
+        "novelty": 3,
+        "transferability": 3,
+        "teachability": 4,
+        "confidence": 4,
+        "red_flags": [],
+        "counter_evidence": [
+          "Core empirical evidence is still author-produced: Hugging Face blog plus the authors' arXiv preprint, with no outside replication.",
+          "The headline claim compares against the compressed model's bf16 checkpoint, not necessarily against the original full 120B teacher on most tasks.",
+          "Related older literature already reported post-quantization recovery and occasional parity/improvement over full precision, so the novelty is more in the compress-then-quantize-heal recipe than in the existence of recovery itself.",
+          "arXiv notes a patent application, which is relevant to openness and downstream adoption incentives."
+        ],
+        "rationale": "I verified a primary paper exists within the window: arXiv submission on August 21, 2026, plus the Hugging Face post on August 25, 2026. The paper abstract directly supports the key claim that on a GPT-OSS 120B → 60B → MXFP4 pipeline, the QAH student matches or beats its bf16 source on 7 of 9 benchmarks and reaches a comparable QAT peak about 7x faster while remaining stable. This is stronger than a pure blog announcement because there is an accessible primary paper. What remains uncertain is generalization across architectures, tasks, and hardware, since the evidence centers on one main pipeline. The most important failure mode is practitioners extrapolating a narrow case study into a universal compressed-LLM recipe. ",
+        "verified_source_urls": [
+          "https://huggingface.co/blog/MultiverseComputingCAI/quantization-aware-healing",
+          "https://arxiv.org/abs/2608.20953"
+        ],
+        "verified_primary_source_urls": [
+          "https://huggingface.co/blog/MultiverseComputingCAI/quantization-aware-healing",
+          "https://arxiv.org/abs/2608.20953"
+        ]
+      }
+    },
+    {
+      "candidate": {
+        "candidate_id": "2026-08-20-lfm25-dspark",
+        "title": "Liquid AI releases DSpark draft checkpoints for speculative decoding with day-one llama.cpp and SGLang support",
+        "category": "engineering_practice",
+        "published_at": "2026-08-20",
+        "summary": "Liquid AI published DSpark draft-model checkpoints for multiple LFM2.5 models, adding speculative decoding paths that reportedly improve throughput up to 3.18x on GPU and 2.87x on-device. The release is immediately practical because support was upstreamed to llama.cpp and SGLang, and the post highlights average function-calling latency cuts for agentic workloads.",
+        "novelty": "Turns speculative decoding into a deployable artifact rather than a paper-only idea, with open integration in popular inference stacks.",
+        "practitioner_value": "Inference teams can trial draft-model speculation without inventing their own serving path, especially for edge or agentic deployments where token latency and tool-call turnaround matter.",
+        "concrete_takeaways": [
+          "Use draft-model speculative decoding when decode is memory-bound and latency dominates.",
+          "Measure function-calling latency, not just raw tokens/sec, for agentic deployments.",
+          "Prefer solutions with upstream runtime support to reduce inference-stack maintenance burden.",
+          "Treat a small memory increase as acceptable if it buys materially better end-to-end interaction latency."
+        ],
+        "limitations": [
+          "Performance claims are builder-reported and model-family specific.",
+          "Benefits depend on runtime support and workload shape."
+        ],
+        "source_urls": [
+          "https://huggingface.co/blog/LiquidAI/lfm25-dspark"
+        ],
+        "primary_source_urls": [
+          "https://huggingface.co/blog/LiquidAI/lfm25-dspark"
+        ]
+      },
+      "evaluation": {
+        "candidate_id": "2026-08-20-lfm25-dspark",
+        "factual_accuracy": 4,
+        "evidence_strength": 4,
+        "practical_value": 4,
+        "novelty": 3,
+        "transferability": 3,
+        "teachability": 4,
+        "confidence": 4,
+        "red_flags": [],
+        "counter_evidence": [
+          "Performance numbers are builder-reported from one model family and specific runtimes/hardware.",
+          "The 'day-one support' claim is substantiated by merged runtime PRs, but that does not guarantee polished production stability; I found at least one later llama.cpp DSpark-related issue reporting VRAM leak/cache interaction problems.",
+          "Speculative decoding itself is not new; the practical novelty is released draft checkpoints plus upstream runtime support."
+        ],
+        "rationale": "Verified from the Liquid AI primary post that it was published on August 20, 2026 and claims up to 3.18x GPU throughput, up to 2.87x on-device, 57% average function-calling latency reduction for LFM2.5-2.6B, and exact greedy-output parity by construction. I also verified primary integration evidence that llama.cpp PR #27383 was merged on August 20, 2026, and found the referenced SGLang PR #31041, supporting the interoperability/deployability angle. What remains uncertain is robustness across workloads and maturity of the upstream implementations. The most important failure mode is teams budgeting around best-case speedups without accounting for workload variance and runtime bugs. ",
+        "verified_source_urls": [
+          "https://huggingface.co/blog/LiquidAI/lfm25-dspark",
+          "https://github.com/ggml-org/llama.cpp/pull/27383",
+          "https://github.com/sgl-project/sglang/pull/31041",
+          "https://github.com/ggml-org/llama.cpp/issues/27155"
+        ],
+        "verified_primary_source_urls": [
+          "https://huggingface.co/blog/LiquidAI/lfm25-dspark"
+        ]
+      }
+    },
+    {
+      "candidate": {
+        "candidate_id": "2026-08-25-gradio-workflow",
+        "title": "Gradio ships `gr.Workflow` for graph-native AI pipelines and one-command deployment",
+        "category": "engineering_practice",
+        "published_at": "2026-08-25",
+        "summary": "Gradio published `gr.Workflow`, a graph-based way to express multi-step AI applications where the pipeline itself becomes the UI and API. Nodes are typed, intermediate outputs are inspectable, and the same workflow can be served as a drag-and-drop canvas, REST API, and Hugging Face Space.",
+        "novelty": "Pushes beyond single-function demos toward pipeline-first app construction, with debugging and deployment built around the graph rather than custom glue code.",
+        "practitioner_value": "Useful for teams repeatedly wiring model chains, Spaces, and providers together. It can reduce bespoke orchestration code and make intermediate-state debugging much easier.",
+        "concrete_takeaways": [
+          "Represent AI apps as typed DAGs so every step is runnable and inspectable.",
+          "Use the same workflow definition for both interactive debugging and production API exposure.",
+          "Fan out parallel branches in the graph instead of manually managing async orchestration for simple multimodel apps.",
+          "Treat workflow graphs as reusable app artifacts that can be duplicated and deployed quickly."
+        ],
+        "limitations": [
+          "This is a framework feature announcement rather than a neutral benchmarked study.",
+          "Best fit is pipeline-centric apps; lower value for highly customized backend orchestration."
+        ],
+        "source_urls": [
+          "https://huggingface.co/blog/gradio-workflow-guide"
+        ],
+        "primary_source_urls": [
+          "https://huggingface.co/blog/gradio-workflow-guide"
+        ]
+      },
+      "evaluation": {
+        "candidate_id": "2026-08-25-gradio-workflow",
+        "factual_accuracy": 4,
+        "evidence_strength": 3,
+        "practical_value": 4,
+        "novelty": 3,
+        "transferability": 3,
+        "teachability": 4,
+        "confidence": 4,
+        "red_flags": [],
+        "counter_evidence": [
+          "This is a product/framework feature announcement, not neutral evidence that graph-native workflow UIs are broadly better than existing orchestration patterns.",
+          "I verified existence, date, API/UI behavior, and deployment claims from the blog, but not broad adoption or comparative productivity gains.",
+          "The idea of expressing AI apps as DAGs is not new; the novelty is Gradio packaging it as `gr.Workflow` with integrated UI/API/Space deployment."
+        ],
+        "rationale": "Verified from the primary source that the Gradio post was published on August 25, 2026, is specifically about `gr.Workflow`, and claims that workflows become both interface and API with callable endpoints and deployable examples. The blog includes example Python and HTTP usage and points to official docs, so the practical mechanics are real. What remains uncertain is whether this materially reduces bespoke orchestration cost in nontrivial production systems. The most important failure mode is mistaking a convenient demo/deployment layer for a full substitute for more customized backend orchestration. ",
+        "verified_source_urls": [
+          "https://huggingface.co/blog/gradio-workflow-guide",
+          "https://github.com/huggingface/blog/blob/main/gradio-workflow-guide.md",
+          "https://github.com/gradio-app/gradio/releases?ref=blog.elest.io"
+        ],
+        "verified_primary_source_urls": [
+          "https://huggingface.co/blog/gradio-workflow-guide"
+        ]
+      }
+    }
+  ],
+  "gate_results": [
+    {
+      "candidate_id": "2026-08-25-granite-4-2",
+      "approved": false,
+      "rejection_reasons": [
+        "insufficient_verified_sources"
+      ]
+    },
+    {
+      "candidate_id": "2026-08-25-qah",
+      "approved": true,
+      "rejection_reasons": []
+    },
+    {
+      "candidate_id": "2026-08-25-gradio-workflow",
+      "approved": true,
+      "rejection_reasons": []
+    },
+    {
+      "candidate_id": "2026-08-21-pwc-search-architecture",
+      "approved": false,
+      "rejection_reasons": [
+        "insufficient_verified_sources"
+      ]
+    },
+    {
+      "candidate_id": "2026-08-20-lfm25-dspark",
+      "approved": true,
+      "rejection_reasons": []
+    },
+    {
+      "candidate_id": "2026-08-24-gemini-release-notes-openai-compat",
+      "approved": false,
+      "rejection_reasons": [
+        "insufficient_verified_sources",
+        "factual_accuracy_below_4",
+        "evidence_strength_below_3",
+        "unresolved_red_flags",
+        "weighted_score_below_threshold"
+      ]
+    },
+    {
+      "candidate_id": "2026-08-20-github-code-quality-actions-path",
+      "approved": false,
+      "rejection_reasons": [
+        "insufficient_verified_sources"
+      ]
+    },
+    {
+      "candidate_id": "2026-08-19-codeql-2263",
+      "approved": false,
+      "rejection_reasons": [
+        "insufficient_verified_sources"
+      ]
+    },
+    {
+      "candidate_id": "2026-08-17-openhands-v1140-window",
+      "approved": false,
+      "rejection_reasons": [
+        "outside_reporting_window",
+        "unresolved_red_flags",
+        "weighted_score_below_threshold"
+      ]
+    }
+  ],
+  "candidate_count": 9,
+  "evaluation_count": 9,
+  "configuration": {
+    "max_topics": 3,
+    "minimum_score": 70.0,
+    "minimum_verified_sources": 2,
+    "discovery_model": "gpt-5.4",
+    "evaluation_model": "gpt-5.4",
+    "editor_model": "gpt-5.4"
+  }
 }

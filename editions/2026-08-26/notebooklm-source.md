@@ -1,98 +1,93 @@
 # NotebookLM Source Pack: AI Weekly 2026-08-19 — 2026-08-25
 
-本文件仅包含通过 evaluation gates 的三个主题。Video Overview 必须区分 source fact、作者主张与我们的工程 inference；不得把 vendor-reported benchmark 当作独立复现。
+本文件只包含通过证据门槛的主题。生成 Video Overview 时，要求所有事实仅来自本文件及所列 primary sources。
 
-## Topic 1: Search agent 的瓶颈可能是 selection，而不是 generation
+## Topic 1: DSpark draft checkpoints：把 speculative decoding 变成可部署推理路径
 
-Evaluation score: 82.8/100
+Evaluation score: 75.6/100
 
-AI21 8 月 19 日公布的 FACTS-Search 实验提出：在 agentic search 中，candidate pool 经常已经包含正确答案，主要错误来自 aggregator 选错。固定 pool 后，majority vote 的 vendor-reported score 为 83.3；为每个候选独立重新执行 web research 的 frontier verifier 报告 93.4。AI21 的 SFT + RL 8B verifier 报告 92.9，并把验证成本显著降低。
+如果你的解码阶段是 memory-bound、且用户体感延迟比纯 tokens/sec 更重要，带有上游运行时支持的 draft-model speculative decoding 是值得优先试验的加速手段。
 
-工程架构是 `generators → independent verifier per candidate → aggregate verified candidates only`。Verifier 不能看到票数或其他候选 rationale；它只接收 question 和一个 candidate，独立检索 primary evidence，返回 `VALID | NOT_VALID | UNKNOWN`。如果所有候选都被否决，系统 abstain。
+这次不是单纯论文概念，而是 Liquid AI 直接发布了 DSpark draft checkpoints，并且在 llama.cpp 与 SGLang 中给出 day-one 支持，降低了试验门槛。
 
-评估必须按 question 统计 `pass@1`、`pass@k`、`pass@1(v)` 和 `pass@k(v)`。`pass@k-pass@1` 测量 selection headroom；`pass@1(v)-pass@1` 测量 verification lift；`pass@k-pass@k(v)` 测量 verifier 错杀全部正确答案造成的 recall loss。若自己的 `pass@k` 与 `pass@1` 很接近，增加 verifier 可能只有成本，没有收益。
-
-### Demo script
-
-1. 冻结 20 个有 ground truth 的多跳 search questions。
-2. 用同一低成本 generator 每题采样四个 candidates，记录 pass@1/pass@4。
-3. 建立隔离 verifier，逐候选重新搜索并输出 verdict、citations、counter-evidence。
-4. 比较 majority vote、frontier verifier、small verifier 的 quality/cost/latency。
-5. 监控 abstention 和 verifier recall cap，只有 Pareto frontier 改善才部署。
-
-### Limitations
-
-- AI21 成绩是 vendor-reported，未找到完整独立复现、weights 或训练代码。
-- evaluation sample 约 100 questions，且训练 labels 带 automated-grader noise。
-- 方法最适合 factual search，不应直接迁移到主观写作。
-
-### Source URLs
-
-- https://www.ai21.com/blog/you-need-a-verifier/
-- https://www.kaggle.com/benchmarks/google/facts
-
-### Video steering prompt
-
-生成简体中文 Explainer。先用一个“多数人都答错，但少数 candidate 已经答对”的例子解释 selection bottleneck，再画出 generator pool、独立 verifier、verified-only aggregator 三层流程。重点教学四个 pass 指标以及 verifier precision/recall trade-off。明确所有分数均为 AI21 vendor-reported，样本约 100 题，不能称为独立复现。结尾给出 20-question A/B demo，不讨论泛化的 AGI 结论。
-
-## Topic 2: Structure for reading，prose and tests for writing
-
-Evaluation score: 80.8/100
-
-8 月 21 日的新论文研究真实 tender-response agent。作者报告：将输入解析成带 stable `eid/locator` 的 nested markup，显著改善三个 reading tasks；但把写作 instructions 从 prose 改成 nested XML，在单一 paired comparison 中将 quality 从 74% 降到 48%。论文还观察到，直接在 prompt 中命名禁止形式可能集中残余缺陷，以及 stochastic annotation 接 deterministic windowing 会放大微小 variance。
-
-稳健架构应是：`deterministic parsing → structured reading/extraction → persisted requirements → prose drafting instruction → deterministic output validators → human gate`。Structure 负责保存 containment、adjacency 与 provenance；写作规则用正向 prose 和 self-tests 表达；硬约束由代码验证。
+机制上，speculative decoding 让一个更小的 draft model 先提出一段候选 token，再由主模型验证并接受其中正确前缀，从而减少昂贵主模型逐 token 解码的次数。它的关键不是“近似输出”，而是在特定实现下保持 greedy output parity，同时用更便宜的预提议路径换取吞吐和延迟改善。真正决定收益的，是 draft 命中率、验证开销、KV/cache 行为，以及你的请求形态是否以 decode 为主。
 
 ### Demo script
-
-1. 将固定文档解析成 `{eid, locator, text, parent, format_flags}`。
-2. 固定所有条件，只 A/B 测试 nested XML instructions 与 concise prose instructions。
-3. 每组运行 10 次以上，统计 coverage、unsupported claims、format violations 和 variance。
-4. 把“不要写坏模式 X”改成模型可执行的正向逐句 self-test。
-5. 在 stochastic annotation 后持久化 artifact，并用 source hash/question count invariant fail closed。
+1. 准备一个支持 DSpark 的运行时环境，例如 llama.cpp 或 SGLang，并选用项目方提供的 LFM2.5 主模型与对应 draft checkpoint。
+2. 固定同一组 prompts，先跑不带 speculation 的 baseline，记录 TTFT、每秒输出 token、以及端到端响应时间。
+3. 开启 DSpark speculative decoding，再次运行完全相同的 prompts，比较 tokens/sec 之外的指标，尤其是 function-calling 或 agentic 流程的平均完成时延。
+4. 把输出逐条比对，确认在你的 greedy 配置下是否保持一致；如果业务依赖严格可复现输出，这一步比速度测试更重要。
+5. 逐步扩大 batch size、上下文长度、tool-calling 比例，观察加速是否稳定，顺便检查显存占用和 cache 行为是否出现异常。
 
 ### Limitations
-
-- 核心 paired comparison 来自一个 procurement、每组 `n=31`，未独立复现。
-- human comparison 使用同 model family 的单一 LLM judge，没有 blinded human scoring。
-- 结论是值得复现实验的 boundary，不是“XML prompt 永远更差”的定律。
+- 性能数字来自构建方报告，且集中于一个模型家族与特定运行时。
+- 已验证有上游 PR，但“可用”不等于“生产成熟”；评估中还提到后续存在 llama.cpp 相关 issue。
+- speculative decoding 本身并不新，真正的新意在于可直接使用的 draft checkpoints 与主流运行时集成。
 
 ### Source URLs
-
-- https://arxiv.org/abs/2608.20786
-- https://arxiv.org/pdf/2608.20786
+- https://huggingface.co/blog/LiquidAI/lfm25-dspark
+- https://github.com/ggml-org/llama.cpp/pull/27383
+- https://github.com/sgl-project/sglang/pull/31041
+- https://github.com/ggml-org/llama.cpp/issues/27155
 
 ### Video steering prompt
+请基于提供来源，生成一段简洁的 Simplified Chinese Explainer 视频脚本。重点说明：1) DSpark speculative decoding 的工作机制；2) 为什么它能在保持 greedy output parity 的前提下提升吞吐/降低延迟；3) 一个可复现的小型评测 demo（baseline vs DSpark，比较 TTFT、tokens/sec、端到端 latency、function-calling latency）；4) 适用场景与失败场景；5) 所有结论必须严格以来源为依据，不扩展到未验证模型或硬件。
 
-生成简体中文 Explainer。用左右分屏对比 read path 与 write path：左边展示 nested document markup 如何保存 table/paragraph containment 和 locator；右边展示为什么深层 XML instructions 可能压低 generation quality，并由 prose + positive self-tests + deterministic validators 替代。准确呈现 74%→48%、96% 和 2-slot→17-question 三个作者报告的结果，同时用醒目 caveat 标注单一 procurement、n=31、同家族 LLM judge 和未复现。最后给出可操作 A/B test。
+## Topic 2: Quantization-Aware Healing：面向“先压缩再 4-bit 量化”的恢复阶段
 
-## Topic 3: Freshness 和 source policy 应进入 search tool contract
+Evaluation score: 75.6/100
 
-Evaluation score: 89.2/100
+如果你的部署现实是必须同时做结构压缩和 4-bit 量化，那么把它当作独立优化问题，并加入一个 healing 阶段，可能比直接套普通 QAT 或 naive fine-tuning 更有效。
 
-Amazon Bedrock AgentCore 8 月 19 日发布 Web Search connector 1.2.0，支持 request-level domain include/exclude 和 inclusive ISO-8601 UTC publication-date bounds。管理员 target-level policy 与 request-level filters 组合：include 取交集、exclude 取并集，request 不能扩大 admin policy。
+这项工作直接针对很多生产团队的真实路线：不是单独量化，而是先把模型压小，再做低比特部署。作者报告的亮点案例是 GPT-OSS 120B 压到 60B、再量化到 MXFP4 后，经 healing 在 9 个基准中的 7 个超过其 bf16 对照。
 
-可迁移的核心不是 AWS 产品，而是 `policy ceiling + per-task narrowing`：强时效或高风险 research 不应只靠 prompt 说“查最近一周官方来源”，而应让 search backend 执行 typed constraints，记录 effective policy、returned publication dates 和 rejected-result counts；零结果时 fail closed，不能让模型静默取消 filters。
+核心机制不是“量化后随便微调一下”，而是把压缩带来的结构变化与 4-bit 量化误差联合看待。也就是说，模型在 compress-then-quantize 后遭遇的是复合退化；QAH 的价值在于显式针对这种复合损伤做恢复。对工程上最重要的启发是：评估对象不该只有原始全尺寸模型，还应比较压缩后的 fp/bf16 基线，因为真正部署时你常常是在多个受限版本之间选最优。评估还指出，这种方法的亮点更多在 recipe，而不是“恢复训练”这一大类思想本身完全新。
 
 ### Demo script
-
-1. 为 search wrapper 添加 typed `include_domains/exclude_domains/published_from/published_to`。
-2. 在 backend 计算 admin 与 request policy 的有效交集/并集。
-3. 测试 request 不能越权、UTC 边界 inclusive、零结果不会自动放宽。
-4. A/B 比较 prompt-only 与 enforced-filter 的越界日期率和非 primary-source 率。
-5. 记录 empty-result rate，防止 allowlist 过窄导致 silent recall loss。
+1. 选一个你已有的 open-weight 模型，先建立 3 个版本：压缩后的 fp/bf16 版、压缩后直接 4-bit 量化版、以及压缩后量化再做 recovery/healing 的版本。
+2. 在同一批 reasoning 或 code-sensitive 任务上做 A/B/C 对比，至少记录准确率或任务成功率，以及显存/吞吐指标。
+3. 重点比较 healing 版相对“压缩后的 fp/bf16 基线”是否恢复甚至超过，而不是只和原始大模型比。
+4. 如果你的预算有限，先在最容易受量化影响的任务上试，例如代码、推理、多步约束生成。
+5. 把训练/恢复时间单独记账；如果恢复成本太高，部署收益可能被抵消。
 
 ### Limitations
-
-- 参数与 zero-egress 是 AWS 专有实现；其他 provider 需自行实现。
-- publication metadata 可能错误，filter 不能替代打开正文核验。
-- 过窄 policy 会降低 recall，必须有 abstention 与监控。
+- 当前最强证据仍集中在作者提供的案例与论文，尚缺少广泛外部复现。
+- headline 结果强调的是相对压缩后 bf16 对照的表现，不应误读为普遍超过原始全尺寸模型。
+- 评估还指出 arXiv 中提到 patent application，这可能影响后续采用激励与开放性判断。
 
 ### Source URLs
-
-- https://aws.amazon.com/blogs/machine-learning/domain-and-publish-date-filters-for-web-search-on-agentcore/
-- https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway-target-connector-web-search-tool.html
+- https://huggingface.co/blog/MultiverseComputingCAI/quantization-aware-healing
+- https://arxiv.org/abs/2608.20953
 
 ### Video steering prompt
+请基于提供来源，生成一段简洁的 Simplified Chinese Explainer 视频脚本。重点说明：1) 为什么 compress-then-quantize 是与 plain quantization 不同的问题；2) Quantization-Aware Healing 的核心机制与它试图修复的复合退化；3) 一个小型可复现 demo 设计：比较压缩后 bf16、压缩后直接 4-bit、压缩后 4-bit + healing 三个版本；4) 何时值得使用、何时不该外推；5) 所有结论必须严格引用来源，不夸大其跨架构普适性。
 
-生成简体中文 Explainer。先演示 prompt-only 的 agent 如何忘记“最近一周+官方来源”，再展示 typed search contract。用图解释 admin policy 是 ceiling、request filter 只能 narrowing：include 取交集、exclude 取并集、date bounds 为 inclusive UTC。给出一个 JSON tool-call 示例和三个 deterministic tests。明确 AWS connector 1.2.0 是具体实现，通用原则才是教学重点；提醒 publication metadata error 与 recall loss。
+## Topic 3: `gr.Workflow`：把多步骤 AI 应用直接表示成 typed DAG
+
+Evaluation score: 71.6/100
+
+对于经常拼装多模型、多步骤、可视化调试流程的团队，`gr.Workflow` 提供了一个“同一份图既是 UI 也是 API”的低胶水代码方案。
+
+它不是一般的单函数 demo，而是把 pipeline 本身提升为一等对象：节点有类型、过程可检查、同一工作流可作为拖拽画布、REST API 和 Hugging Face Space 部署。
+
+机制上，`gr.Workflow` 的关键思想是把 AI app 写成 typed DAG：每个节点代表一步计算或模型调用，边代表数据流。这样做的好处不是理论新颖，而是工程可见性——中间结果可检查、并行分支更自然、UI 与 API 由同一图导出。对教学最有价值的一点是：很多“链式应用”其实不需要先上重型 orchestration，只要把步骤、输入输出类型和依赖关系明确成图，就已经能显著降低调试成本。
+
+### Demo script
+1. 用 `gr.Workflow` 定义一个最小 3 节点流程：输入文本 -> 摘要 -> 情感分类，确保每一步输出都能在图中看到。
+2. 把其中一个节点替换成并行分支，例如“摘要”和“关键词提取”同时进行，再合并结果到最终展示节点。
+3. 启动本地服务，分别从图形界面运行一次，再通过其 API 调用同一工作流，验证“同图即同接口”的行为。
+4. 故意让中间一个节点输出异常或空值，观察 typed DAG 下的调试体验是否比手写 glue code 更直接。
+5. 最后将工作流按官方路径部署为可分享应用，评估它是否足以支撑你的实际 pipeline，而不是只看 demo 观感。
+
+### Limitations
+- 这是框架/产品功能发布，不是证明 graph-native UI 一定优于其他编排方式的中立研究。
+- DAG 表达 AI app 并非新概念，新意在于 Gradio 将其包装成 `gr.Workflow` 并统一了 UI、API、部署体验。
+- 是否真能降低复杂生产系统成本，当前仍需团队自行验证。
+
+### Source URLs
+- https://huggingface.co/blog/gradio-workflow-guide
+- https://github.com/huggingface/blog/blob/main/gradio-workflow-guide.md
+- https://github.com/gradio-app/gradio/releases?ref=blog.elest.io
+
+### Video steering prompt
+请基于提供来源，生成一段简洁的 Simplified Chinese Explainer 视频脚本。重点说明：1) `gr.Workflow` 如何用 typed DAG 表达 AI pipeline；2) 为什么“同一工作流即 UI 与 API”能减少 glue code 和提升可调试性；3) 一个最小 demo：输入 -> 摘要 -> 分类，再扩展到并行分支；4) 它适合与不适合的系统类型；5) 所有判断都必须以来源内容为基础，不宣称未经验证的生产收益。
