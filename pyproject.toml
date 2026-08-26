@@ -1,0 +1,28 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "weekly-tech-update"
+version = "0.1.0"
+description = "Evidence-gated weekly AI engineering update and NotebookLM source-pack generator"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "openai>=1.99.0,<3",
+  "pydantic>=2.8,<3",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.3,<9"]
+
+[project.scripts]
+weekly-tech-update = "weekly_tech_update.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/weekly_tech_update"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+

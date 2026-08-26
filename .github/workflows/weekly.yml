@@ -1,0 +1,71 @@
+name: Weekly AI tech update
+
+on:
+  schedule:
+    # Monday 08:00 Asia/Singapore (UTC+8, no DST).
+    - cron: "0 0 * * 1"
+  workflow_dispatch:
+    inputs:
+      as_of:
+        description: "Edition date (YYYY-MM-DD); blank uses today"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: weekly-ai-tech-update
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'gpt-5.4' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: pip install '.[dev]'
+
+      - name: Test
+        run: pytest -q
+
+      - name: Generate edition
+        env:
+          INPUT_AS_OF: ${{ inputs.as_of }}
+        run: |
+          args=(--output-root editions --max-topics 3 --minimum-score 70)
+          if [[ -n "$INPUT_AS_OF" ]]; then args+=(--as-of "$INPUT_AS_OF"); fi
+          weekly-tech-update "${args[@]}"
+
+      - name: Commit edition
+        run: |
+          git config user.name "weekly-tech-update[bot]"
+          git config user.email "weekly-tech-update[bot]@users.noreply.github.com"
+          git add editions
+          if git diff --cached --quiet; then
+            echo "No new edition to commit"
+          else
+            git commit -m "weekly: AI update $(date -u +%F)"
+            git push
+          fi
+
+      - name: Upload source pack
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: weekly-ai-source-pack
+          path: editions/
+          if-no-files-found: warn
+          retention-days: 30

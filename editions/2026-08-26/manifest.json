@@ -1,0 +1,191 @@
+{
+  "run": {
+    "mode": "codex_manual_run",
+    "reason": "OPENAI_API_KEY was not available in the local environment",
+    "generated_at": "2026-08-26T12:13:56+08:00",
+    "window_start": "2026-08-19",
+    "window_end": "2026-08-25",
+    "max_topics": 3,
+    "minimum_score": 70.0,
+    "minimum_verified_sources": 2
+  },
+  "candidates": [
+    {
+      "candidate_id": "ai21-independent-search-verifier",
+      "title": "Independent verifier for agentic search candidate pools",
+      "category": "engineering_practice",
+      "published_at": "2026-08-19",
+      "source_urls": ["https://www.ai21.com/blog/you-need-a-verifier/", "https://www.kaggle.com/benchmarks/google/facts"],
+      "primary_source_urls": ["https://www.ai21.com/blog/you-need-a-verifier/"]
+    },
+    {
+      "candidate_id": "asymmetric-structural-conditioning",
+      "title": "Structure for reading, prose for writing",
+      "category": "valuable_paper",
+      "published_at": "2026-08-21",
+      "source_urls": ["https://arxiv.org/abs/2608.20786", "https://arxiv.org/pdf/2608.20786"],
+      "primary_source_urls": ["https://arxiv.org/abs/2608.20786", "https://arxiv.org/pdf/2608.20786"]
+    },
+    {
+      "candidate_id": "agentcore-domain-date-filters",
+      "title": "Enforce source and freshness policy in the search tool contract",
+      "category": "practical_trick",
+      "published_at": "2026-08-19",
+      "source_urls": ["https://aws.amazon.com/blogs/machine-learning/domain-and-publish-date-filters-for-web-search-on-agentcore/", "https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway-target-connector-web-search-tool.html"],
+      "primary_source_urls": ["https://aws.amazon.com/blogs/machine-learning/domain-and-publish-date-filters-for-web-search-on-agentcore/", "https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway-target-connector-web-search-tool.html"]
+    },
+    {
+      "candidate_id": "aws-ard-agent-discovery",
+      "title": "AWS support for Agentic Resource Discovery federation",
+      "category": "engineering_practice",
+      "published_at": "2026-08-24",
+      "source_urls": ["https://aws.amazon.com/blogs/machine-learning/agentic-resource-discovery-ard-an-open-specification-for-agent-discovery/", "https://github.com/ards-project/ard-spec", "https://developers.googleblog.com/announcing-the-agentic-resource-discovery-specification/"],
+      "primary_source_urls": ["https://github.com/ards-project/ard-spec"]
+    },
+    {
+      "candidate_id": "netconfarena",
+      "title": "NetConfArena executable benchmark for closed-loop network agents",
+      "category": "valuable_paper",
+      "published_at": "2026-08-24",
+      "source_urls": ["https://arxiv.org/abs/2608.23179"],
+      "primary_source_urls": ["https://arxiv.org/abs/2608.23179"]
+    },
+    {
+      "candidate_id": "requirements-driven-candidate-sourcing",
+      "title": "Treat vague people search as requirements engineering",
+      "category": "valuable_paper",
+      "published_at": "2026-08-24",
+      "source_urls": ["https://arxiv.org/abs/2608.23501"],
+      "primary_source_urls": ["https://arxiv.org/abs/2608.23501"]
+    },
+    {
+      "candidate_id": "openai-jalapeno-inference-chip",
+      "title": "OpenAI Jalapeño inference chip benchmark disclosure",
+      "category": "engineering_practice",
+      "published_at": "2026-08-25",
+      "source_urls": ["https://openai.com/index/the-full-stack-behind-abundant-intelligence/"],
+      "primary_source_urls": ["https://openai.com/index/the-full-stack-behind-abundant-intelligence/"]
+    },
+    {
+      "candidate_id": "google-agent-governance-report",
+      "title": "Agent security and governance infrastructure report",
+      "category": "engineering_practice",
+      "published_at": "2026-08-24",
+      "source_urls": ["https://cloud.google.com/blog/topics/ai-infrastructure/state-of-ai-infrastructure-report-agent-governance-and-security"],
+      "primary_source_urls": ["https://cloud.google.com/blog/topics/ai-infrastructure/state-of-ai-infrastructure-report-agent-governance-and-security"]
+    },
+    {
+      "candidate_id": "redhat-llm-d-sovereignty",
+      "title": "Scaling agentic AI with llm-d",
+      "category": "engineering_practice",
+      "published_at": "2026-08-19",
+      "source_urls": ["https://www.redhat.com/en/blog/channel/red-hat-ai?page=-1"],
+      "primary_source_urls": ["https://www.redhat.com/en/blog/channel/red-hat-ai?page=-1"]
+    },
+    {
+      "candidate_id": "vllm-ascend-026-rc1",
+      "title": "vLLM Ascend 0.26.0 release candidate",
+      "category": "engineering_practice",
+      "published_at": "2026-08-24",
+      "source_urls": ["https://github.com/vllm-project/vllm-ascend/issues/14767"],
+      "primary_source_urls": ["https://github.com/vllm-project/vllm-ascend/issues/14767"]
+    }
+  ],
+  "evaluations": [
+    {
+      "candidate_id": "agentcore-domain-date-filters",
+      "scores": {"factual_accuracy": 5, "evidence_strength": 5, "practical_value": 4, "novelty": 3, "transferability": 4, "teachability": 5, "confidence": 5},
+      "weighted_score": 89.2,
+      "decision": "approved",
+      "red_flags": [],
+      "counter_evidence": ["The feature is AWS-specific and publication metadata can be wrong", "Strict filters can silently reduce recall"],
+      "rationale": "Announcement and developer documentation agree on exact schema and composition semantics; the general policy-enforcement pattern is directly testable."
+    },
+    {
+      "candidate_id": "ai21-independent-search-verifier",
+      "scores": {"factual_accuracy": 4, "evidence_strength": 3, "practical_value": 5, "novelty": 4, "transferability": 5, "teachability": 5, "confidence": 3},
+      "weighted_score": 82.8,
+      "decision": "approved",
+      "red_flags": [],
+      "counter_evidence": ["Scores are vendor-reported on roughly 100-question samples", "No complete independent reproduction or released verifier weights were found"],
+      "rationale": "The selection-bottleneck mechanism and metrics are concrete and testable, while the reported absolute scores require replication."
+    },
+    {
+      "candidate_id": "asymmetric-structural-conditioning",
+      "scores": {"factual_accuracy": 4, "evidence_strength": 3, "practical_value": 5, "novelty": 4, "transferability": 4, "teachability": 5, "confidence": 3},
+      "weighted_score": 80.8,
+      "decision": "approved",
+      "red_flags": [],
+      "counter_evidence": ["Core paired result is one procurement with n=31 per arm", "Same model family drafted and judged without blinded human scoring"],
+      "rationale": "The paper is unusually candid about limitations and supplies several reproducible engineering hypotheses, but its numerical results are not universal laws."
+    },
+    {
+      "candidate_id": "aws-ard-agent-discovery",
+      "scores": {"factual_accuracy": 5, "evidence_strength": 4, "practical_value": 4, "novelty": 2, "transferability": 4, "teachability": 4, "confidence": 4},
+      "weighted_score": 79.6,
+      "decision": "rejected",
+      "red_flags": ["The ARD specification and launch predate this weekly window; the new item is AWS support, not a new standard"],
+      "counter_evidence": ["Specification is still v0.9 draft and media type registrations are pending"],
+      "rationale": "Architecturally useful, but it fails the weekly-newness gate and risks presenting an old draft spec as a new release."
+    },
+    {
+      "candidate_id": "netconfarena",
+      "scores": {"factual_accuracy": 4, "evidence_strength": 3, "practical_value": 3, "novelty": 4, "transferability": 3, "teachability": 3, "confidence": 3},
+      "weighted_score": 66.8,
+      "decision": "rejected",
+      "red_flags": ["Below minimum score and only one primary source was verified"],
+      "counter_evidence": ["Network configuration is a narrow domain and benchmark reproducibility was not checked"],
+      "rationale": "Executable closed-loop evaluation is promising, but insufficiently verified for this edition."
+    },
+    {
+      "candidate_id": "requirements-driven-candidate-sourcing",
+      "scores": {"factual_accuracy": 4, "evidence_strength": 3, "practical_value": 3, "novelty": 4, "transferability": 3, "teachability": 3, "confidence": 2},
+      "weighted_score": 65.6,
+      "decision": "rejected",
+      "red_flags": ["Below minimum score and only the paper was verified"],
+      "counter_evidence": ["Evidence-grounded judging and union-pool recall may not transfer outside people sourcing"],
+      "rationale": "Interesting requirements-engineering framing, but the reported breadth and recall claims need more scrutiny."
+    },
+    {
+      "candidate_id": "google-agent-governance-report",
+      "scores": {"factual_accuracy": 4, "evidence_strength": 2, "practical_value": 3, "novelty": 2, "transferability": 4, "teachability": 3, "confidence": 3},
+      "weighted_score": 60.0,
+      "decision": "rejected",
+      "red_flags": ["Marketing/report framing dominates concrete new engineering evidence"],
+      "counter_evidence": ["Survey percentages do not establish effectiveness of the proposed controls"],
+      "rationale": "Important topic, but not enough reproducible mechanism for a top-three teaching slot."
+    },
+    {
+      "candidate_id": "redhat-llm-d-sovereignty",
+      "scores": {"factual_accuracy": 4, "evidence_strength": 2, "practical_value": 3, "novelty": 2, "transferability": 3, "teachability": 3, "confidence": 3},
+      "weighted_score": 58.0,
+      "decision": "rejected",
+      "red_flags": ["Vendor narrative with insufficient independent production evidence"],
+      "counter_evidence": ["Operational value depends heavily on Kubernetes and accelerator environment"],
+      "rationale": "Potentially useful for a dedicated inference-infrastructure edition, but not strong enough here."
+    },
+    {
+      "candidate_id": "openai-jalapeno-inference-chip",
+      "scores": {"factual_accuracy": 4, "evidence_strength": 2, "practical_value": 2, "novelty": 4, "transferability": 1, "teachability": 2, "confidence": 2},
+      "weighted_score": 51.6,
+      "decision": "rejected",
+      "red_flags": ["Benchmark disclosure is not actionable for external engineers and lacks independent reproduction"],
+      "counter_evidence": ["Comparability and full benchmark configuration were not established"],
+      "rationale": "Newsworthy infrastructure disclosure, but low near-term practitioner value."
+    },
+    {
+      "candidate_id": "vllm-ascend-026-rc1",
+      "scores": {"factual_accuracy": 4, "evidence_strength": 3, "practical_value": 2, "novelty": 2, "transferability": 1, "teachability": 2, "confidence": 3},
+      "weighted_score": 52.0,
+      "decision": "rejected",
+      "red_flags": ["Release candidate and hardware-specific; no substantive release-note evaluation completed"],
+      "counter_evidence": ["RC status implies breaking changes and unresolved feedback"],
+      "rationale": "Relevant only to a narrow Ascend deployment audience and premature for general teaching."
+    }
+  ],
+  "selected_topic_ids": [
+    "ai21-independent-search-verifier",
+    "asymmetric-structural-conditioning",
+    "agentcore-domain-date-filters"
+  ]
+}
