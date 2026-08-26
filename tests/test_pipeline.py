@@ -12,7 +12,12 @@ from weekly_tech_update.models import (
     EvaluationBatch,
     WeeklyEdition,
 )
-from weekly_tech_update.pipeline import PipelineConfig, apply_hard_gates, weekly_window
+from weekly_tech_update.pipeline import (
+    PipelineConfig,
+    apply_hard_gates,
+    gate_rejection_reasons,
+    weekly_window,
+)
 
 
 def candidate(**overrides):
@@ -105,3 +110,22 @@ def test_source_urls_still_fail_closed_after_schema_compatibility_change():
         candidate(source_urls=["not-a-url"])
     with pytest.raises(ValidationError, match="must not contain credentials"):
         candidate(source_urls=["https://user:secret@example.com/source"])
+
+
+def test_gate_rejection_reasons_are_auditable():
+    reasons = gate_rejection_reasons(
+        candidate(published_at="2026-08-16"),
+        evaluation(
+            verified_source_urls=["https://example.com/primary"],
+            red_flags=["Central claim contradicted"],
+        ),
+        window_start=date(2026, 8, 17),
+        window_end=date(2026, 8, 23),
+        minimum_score=70,
+        minimum_verified_sources=2,
+    )
+    assert reasons == [
+        "outside_reporting_window",
+        "insufficient_verified_sources",
+        "unresolved_red_flags",
+    ]

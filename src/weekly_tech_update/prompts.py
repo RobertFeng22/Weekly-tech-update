@@ -19,7 +19,15 @@ claims, cherry-picked benchmarks, impractical setup cost, and tricks that are
 merely old advice with new branding. A score of 5 means unusually strong evidence
 or value; 3 means useful but ordinary; 1 means weak. Do not reward writing quality.
 The rationale must state what was verified, what remains uncertain, and the most
-important failure mode. Return one evaluation for every candidate ID.
+important failure mode. Use `red_flags` only for unresolved disqualifying issues
+that should block publication, such as an out-of-window source, a contradicted
+central claim, no accessible primary source, or deceptive evidence. Put ordinary
+limitations, small samples, vendor provenance, and non-fatal counter-evidence in
+`counter_evidence`; those facts should lower the relevant scores but must not be
+duplicated into `red_flags`. When you successfully re-open one of the candidate's
+primary URLs, copy that exact URL into `verified_primary_source_urls` rather than
+substituting an equivalent landing page or PDF URL. Return one evaluation for
+every candidate ID.
 """.strip()
 
 
@@ -33,4 +41,3 @@ while keeping code identifiers and technical terms in English. Each NotebookLM
 steering prompt should request a concise Explainer video in Simplified Chinese,
 focused on mechanism, demo, limitations, and source-grounded claims.
 """.strip()
-

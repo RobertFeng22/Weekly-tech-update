@@ -18,7 +18,7 @@ from .models import (
     WeeklyEdition,
 )
 from .prompts import DISCOVERY_INSTRUCTIONS, EDITOR_INSTRUCTIONS, EVALUATION_INSTRUCTIONS
-from .render import write_outputs
+from .render import write_failure_audit, write_outputs
 
 SchemaT = TypeVar("SchemaT", bound=BaseModel)
 
@@ -59,23 +59,51 @@ def apply_hard_gates(
     approved: list[EvaluatedCandidate] = []
     for candidate in candidates:
         evaluation = by_id.get(candidate.candidate_id)
-        if evaluation is None or not window_start <= candidate.published_at <= window_end:
+        reasons = gate_rejection_reasons(
+            candidate,
+            evaluation,
+            window_start=window_start,
+            window_end=window_end,
+            minimum_score=minimum_score,
+            minimum_verified_sources=minimum_verified_sources,
+        )
+        if reasons:
             continue
-        verified = _url_set(evaluation.verified_source_urls)
-        primary = _url_set(evaluation.verified_primary_source_urls)
-        cited_primary = _url_set(candidate.primary_source_urls)
-        if len(verified) < minimum_verified_sources:
-            continue
-        if not primary or not (primary & cited_primary):
-            continue
-        if evaluation.factual_accuracy < 4 or evaluation.evidence_strength < 3:
-            continue
-        if evaluation.red_flags:
-            continue
-        if evaluation.weighted_score < minimum_score:
-            continue
+        assert evaluation is not None
         approved.append(EvaluatedCandidate(candidate=candidate, evaluation=evaluation))
     return sorted(approved, key=lambda item: item.evaluation.weighted_score, reverse=True)
+
+
+def gate_rejection_reasons(
+    candidate: Candidate,
+    evaluation: Evaluation | None,
+    *,
+    window_start: date,
+    window_end: date,
+    minimum_score: float,
+    minimum_verified_sources: int,
+) -> list[str]:
+    reasons: list[str] = []
+    if evaluation is None:
+        return ["missing_evaluation"]
+    if not window_start <= candidate.published_at <= window_end:
+        reasons.append("outside_reporting_window")
+    verified = _url_set(evaluation.verified_source_urls)
+    primary = _url_set(evaluation.verified_primary_source_urls)
+    cited_primary = _url_set(candidate.primary_source_urls)
+    if len(verified) < minimum_verified_sources:
+        reasons.append("insufficient_verified_sources")
+    if not primary or not (primary & cited_primary):
+        reasons.append("candidate_primary_source_not_reverified")
+    if evaluation.factual_accuracy < 4:
+        reasons.append("factual_accuracy_below_4")
+    if evaluation.evidence_strength < 3:
+        reasons.append("evidence_strength_below_3")
+    if evaluation.red_flags:
+        reasons.append("unresolved_red_flags")
+    if evaluation.weighted_score < minimum_score:
+        reasons.append("weighted_score_below_threshold")
+    return reasons
 
 
 class WeeklyPipeline:
@@ -191,14 +219,49 @@ class WeeklyPipeline:
             minimum_score=self.config.minimum_score,
             minimum_verified_sources=self.config.minimum_verified_sources,
         )
-        edition = self.edit(approved, window_start, window_end)
+        evaluation_by_id = {
+            evaluation.candidate_id: evaluation for evaluation in evaluations.evaluations
+        }
+        gate_results = [
+            {
+                "candidate_id": candidate.candidate_id,
+                "approved": not (
+                    reasons := gate_rejection_reasons(
+                        candidate,
+                        evaluation_by_id.get(candidate.candidate_id),
+                        window_start=window_start,
+                        window_end=window_end,
+                        minimum_score=self.config.minimum_score,
+                        minimum_verified_sources=self.config.minimum_verified_sources,
+                    )
+                ),
+                "rejection_reasons": reasons,
+            }
+            for candidate in candidates.candidates
+        ]
         edition_dir = output_root / as_of.isoformat()
+        if not approved:
+            write_failure_audit(
+                edition_dir,
+                window_start=window_start,
+                window_end=window_end,
+                candidates=candidates,
+                evaluations=evaluations,
+                gate_results=gate_results,
+                config=self.config,
+            )
+            raise RuntimeError(
+                "no candidate passed the evidence and usefulness gates; "
+                f"see {edition_dir / 'failed-run-manifest.json'}"
+            )
+        edition = self.edit(approved, window_start, window_end)
         write_outputs(
             edition_dir,
             edition=edition,
             candidates=candidates,
             evaluations=evaluations,
             approved=approved,
+            gate_results=gate_results,
             config=self.config,
         )
         return edition_dir

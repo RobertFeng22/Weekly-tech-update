@@ -105,6 +105,7 @@ def write_outputs(
     candidates: CandidateBatch,
     evaluations: EvaluationBatch,
     approved: list[EvaluatedCandidate],
+    gate_results: list[dict[str, object]],
     config: "PipelineConfig",
 ) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -122,6 +123,7 @@ def write_outputs(
         "candidates": candidates.model_dump(mode="json")["candidates"],
         "evaluations": evaluations.model_dump(mode="json")["evaluations"],
         "approved": [item.model_dump(mode="json") for item in approved],
+        "gate_results": gate_results,
         "candidate_count": len(candidates.candidates),
         "evaluation_count": len(evaluations.evaluations),
         "configuration": {
@@ -134,5 +136,37 @@ def write_outputs(
         },
     }
     (output_dir / "manifest.json").write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+
+
+def write_failure_audit(
+    output_dir: Path,
+    *,
+    window_start: object,
+    window_end: object,
+    candidates: CandidateBatch,
+    evaluations: EvaluationBatch,
+    gate_results: list[dict[str, object]],
+    config: "PipelineConfig",
+) -> None:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    manifest = {
+        "status": "failed_no_candidate_passed",
+        "window_start": str(window_start),
+        "window_end": str(window_end),
+        "candidates": candidates.model_dump(mode="json")["candidates"],
+        "evaluations": evaluations.model_dump(mode="json")["evaluations"],
+        "gate_results": gate_results,
+        "configuration": {
+            "max_topics": config.max_topics,
+            "minimum_score": config.minimum_score,
+            "minimum_verified_sources": config.minimum_verified_sources,
+            "discovery_model": config.discovery_model,
+            "evaluation_model": config.evaluation_model,
+            "editor_model": config.editor_model,
+        },
+    }
+    (output_dir / "failed-run-manifest.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
