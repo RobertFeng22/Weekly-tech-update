@@ -143,6 +143,26 @@ def ensure_ai_voice_disclosure(plan: VideoPlan) -> VideoPlan:
     return VideoPlan.model_validate(payload)
 
 
+def normalize_global_scene_topic_ids(plan: VideoPlan) -> VideoPlan:
+    """Remove harmless topic associations from edition-level scenes.
+
+    Structured generation can occasionally attach the last discussed topic to
+    the decision guide. These scene kinds are edition-level by definition, so
+    clearing the association is deterministic and does not relax the allowlist
+    for topic-specific scenes.
+    """
+    payload = plan.model_dump(mode="json")
+    global_kinds = {
+        VideoSceneKind.INTRO.value,
+        VideoSceneKind.FUNNEL.value,
+        VideoSceneKind.DECISION.value,
+    }
+    for scene in payload["scenes"]:
+        if scene["kind"] in global_kinds:
+            scene["topic_id"] = None
+    return VideoPlan.model_validate(payload)
+
+
 class VideoDirector:
     def __init__(self, client: OpenAI, config: VideoConfig) -> None:
         self.client = client
@@ -168,7 +188,9 @@ class VideoDirector:
         )
         if response.output_parsed is None:
             raise RuntimeError("video director returned no structured output")
-        plan = ensure_ai_voice_disclosure(response.output_parsed)
+        plan = normalize_global_scene_topic_ids(
+            ensure_ai_voice_disclosure(response.output_parsed)
+        )
         validate_video_plan(plan, context)
         return plan
 

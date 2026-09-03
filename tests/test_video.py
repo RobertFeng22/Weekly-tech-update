@@ -19,6 +19,7 @@ from weekly_tech_update.video import (
     VideoConfig,
     build_remotion_props,
     ensure_ai_voice_disclosure,
+    normalize_global_scene_topic_ids,
     release_video_url,
     split_caption_chunks,
     validate_video_plan,
@@ -129,6 +130,14 @@ def test_disclosure_is_forced_into_intro_narration():
     plan = ensure_ai_voice_disclosure(_plan())
     assert plan.disclosure == AI_VOICE_DISCLOSURE
     assert plan.scenes[0].narration.startswith(AI_VOICE_DISCLOSURE)
+
+
+def test_global_scene_topic_ids_are_normalized_without_relaxing_topic_allowlist():
+    payload = _plan().model_dump(mode="json")
+    payload["scenes"][-1]["topic_id"] = "topic-1"
+    plan = normalize_global_scene_topic_ids(VideoPlan.model_validate(payload))
+    assert plan.scenes[-1].topic_id is None
+    validate_video_plan(plan, _context())
 
 
 def test_wav_duration_drives_remotion_timeline(tmp_path: Path):
