@@ -1,0 +1,273 @@
+{
+  "window_start": "2026-08-27",
+  "window_end": "2026-09-02",
+  "title": "PyTorch 2.14：先做最小复现，再决定是否升级默认栈",
+  "subtitle": "围绕 compiler、distributed、dynamic shapes 的有边界升级验证",
+  "disclosure": "本视频旁白由 OpenAI 的人工智能语音生成，并非真人录音。",
+  "scenes": [
+    {
+      "scene_id": "scene-01",
+      "topic_id": null,
+      "kind": "intro",
+      "accent": "cyan",
+      "eyebrow": "本期范围",
+      "title": "只有一个主题被选入",
+      "subtitle": "先讲证据边界，再讲升级价值",
+      "narration": "本视频旁白由 OpenAI 的人工智能语音生成，并非真人录音。这段旁白由 AI 生成。本期在时间窗口内、且经过评估后真正入选的只有一个主题：PyTorch 2.14。我们不会把它讲成“升级就会更快”的新闻，而是把它当成一次工程验证任务：先看能力边界哪里变了，再用最小可复现实验决定要不要升级默认栈。整个内容只依据官方 release blog 与 GitHub release notes。",
+      "on_screen_points": [
+        "AI-generated narration",
+        "1 approved topic",
+        "只用官方来源",
+        "先复现再升级"
+      ],
+      "visual_labels": [
+        "Edition Window",
+        "Approved Count Card",
+        "Source URL Footer",
+        "Upgrade Validation Flow"
+      ]
+    },
+    {
+      "scene_id": "scene-02",
+      "topic_id": null,
+      "kind": "evaluation_funnel",
+      "accent": "amber",
+      "eyebrow": "评估漏斗",
+      "title": "11 个候选，最终只留 1 个",
+      "subtitle": "硬门槛先过滤，再做主来源复核",
+      "narration": "本期一共看了 11 个候选，最终批准 1 个，主选项是 cand-001，评分 75.6。漏斗的关键不是追新闻密度，而是先过硬门槛：必须在本期时间窗口内、必须能回到主要来源复核、必须具备可教学性和可落地性。这个主题之所以留下，是因为它同时触及 compiler、distributed runtime、shape contract 和设备支持，适合组织一轮系统性回归测试。",
+      "on_screen_points": [
+        "Candidates: 11",
+        "Approved: 1",
+        "cand-001: 75.6",
+        "时间窗口核验"
+      ],
+      "visual_labels": [
+        "Funnel Diagram",
+        "Score Card",
+        "Primary Source Check",
+        "Hard Gates"
+      ]
+    },
+    {
+      "scene_id": "scene-03",
+      "topic_id": "cand-001",
+      "kind": "problem",
+      "accent": "cyan",
+      "eyebrow": "问题定义",
+      "title": "为什么 2.14 值得专门做升级验证",
+      "subtitle": "它改的不是一点，而是一组工程边界",
+      "narration": "很多版本更新只影响单个 API，但 2.14 不是这样。给定材料里明确提到，它同时带来 Inductor 的 NVGEMM backend、in-tree `nccl2`、c10d fault-tolerance 概念、`@dynamic_spec`，以及 Apple Silicon 线性代数改进和 `torch.compile` 的 experimental complex-tensor support。问题因此变成：你的现有基线，是否会因为这些边界变化而需要重新测量。",
+      "on_screen_points": [
+        "NVGEMM",
+        "in-tree nccl2",
+        "c10d fault-tolerance",
+        "@dynamic_spec"
+      ],
+      "visual_labels": [
+        "System Surface Map",
+        "Compiler / Distributed / Shape / Device",
+        "Capability Delta Cards",
+        "Current Stack vs 2.14"
+      ]
+    },
+    {
+      "scene_id": "scene-04",
+      "topic_id": "cand-001",
+      "kind": "mechanism",
+      "accent": "cyan",
+      "eyebrow": "机制拆解",
+      "title": "核心机制不是承诺收益，而是改变验证对象",
+      "subtitle": "workload-based validation 才是主线",
+      "narration": "这期最重要的机制句子只有一句：不是“升级就一定更快”，而是“框架能力边界发生了变化，所以要用 workload-based validation 重新测量”。对 matrix-heavy 图，NVGEMM 可能改变 kernel 选择；对 distributed 作业，`nccl2` 与 c10d fault-tolerance 意味着通信和失败语义值得重测；对 dynamic shapes，`@dynamic_spec` 把原本隐式的 shape 假设显式化。",
+      "on_screen_points": [
+        "不是性能承诺",
+        "重测 kernel 选择",
+        "重测失败语义",
+        "显式 shape contract"
+      ],
+      "visual_labels": [
+        "Mechanism Chain",
+        "Kernel Selection Diagram",
+        "Failure Semantics Map",
+        "Shape Contract Schema"
+      ]
+    },
+    {
+      "scene_id": "scene-05",
+      "topic_id": "cand-001",
+      "kind": "demo",
+      "accent": "cyan",
+      "eyebrow": "演示一",
+      "title": "先给 `torch.compile` 建立对照基线",
+      "subtitle": "复现 backend 选择可能变化这一点",
+      "narration": "第一个实验只做最小对照，不做夸张结论。选一个小型 MLP 或 attention block，在当前 PyTorch 版本和 2.14 上分别运行 `torch.compile(model)`，固定 batch size、dtype 和 device，记录吞吐、首次编译时间与 steady-state latency。这个演示能复现的，是升级后 backend 选择可能变化，因此 benchmark 需要重跑；它不能证明 2.14 在所有生产场景都更快。证据边界也只到官方发布信息确认“功能已发布”。",
+      "on_screen_points": [
+        "同一模型",
+        "固定 batch/dtype/device",
+        "记录 3 个指标",
+        "限制：不能外推"
+      ],
+      "visual_labels": [
+        "Terminal Benchmark Steps",
+        "Metric Cards",
+        "Version A vs 2.14",
+        "Evidence Boundary Banner"
+      ]
+    },
+    {
+      "scene_id": "scene-06",
+      "topic_id": "cand-001",
+      "kind": "mechanism",
+      "accent": "violet",
+      "eyebrow": "机制拆解",
+      "title": "`@dynamic_spec` 把 dynamic shape 约束写出来",
+      "subtitle": "同一份 contract 连接多条路径",
+      "narration": "第二条主线不是新增一个孤立 API，而是把 dynamic shape 的约束从“靠默认理解”变成“可声明的 contract”。给定材料说明，同一份 shape contract 可以跨 `torch.compile`、`torch.export`、`make_fx`。这件事的工程意义，不是自动带来性能提升，而是减少隐式假设，让 shape 语义更容易在不同路径上对齐、检查和复测。",
+      "on_screen_points": [
+        "声明式 contract",
+        "跨 compile/export/make_fx",
+        "减少隐式假设",
+        "先验证一致性"
+      ],
+      "visual_labels": [
+        "Shape Contract Diagram",
+        "Path Alignment Comparison",
+        "Implicit vs Explicit",
+        "Constraint Flow"
+      ]
+    },
+    {
+      "scene_id": "scene-07",
+      "topic_id": "cand-001",
+      "kind": "demo",
+      "accent": "violet",
+      "eyebrow": "演示二",
+      "title": "做一个最小 dynamic shape contract 测试",
+      "subtitle": "关注语义一致，不预设性能结论",
+      "narration": "这里用一个输入 shape 会变化的 toy model 就够了，比如 batch size 或 sequence length 改变。在 2.14 里尝试用 `@dynamic_spec` 描述 shape 约束，再检查同一模型在 `torch.compile`、`torch.export` 或 `make_fx` 路径上，是否保持一致的 shape 语义。这个实验可复现的是“声明式 contract 如何减少隐式假设”；它不能推出你的真实模型已经完全适配 dynamic shapes。",
+      "on_screen_points": [
+        "toy model",
+        "变化的 batch 或 seq",
+        "检查路径一致性",
+        "限制：不代表真实业务"
+      ],
+      "visual_labels": [
+        "Toy Model Graph",
+        "Contract Annotation Steps",
+        "Path Consistency Check",
+        "Scope Limit Callout"
+      ]
+    },
+    {
+      "scene_id": "scene-08",
+      "topic_id": "cand-001",
+      "kind": "problem",
+      "accent": "amber",
+      "eyebrow": "问题定义",
+      "title": "distributed 侧真正关心的是失败语义",
+      "subtitle": "不是看到新 backend 就直接替换",
+      "narration": "如果团队维护大规模 distributed training 或 inference，升级风险往往不在“能不能跑起来”，而在失败时会发生什么。给定材料提醒我们，新的 in-tree `nccl2` backend 与 c10d fault-tolerance 概念，值得针对初始化、重连和错误暴露方式做重测。换句话说，这里要验证的是 runtime 行为是否变化，而不是先假设真实集群容错已经被完全解决。",
+      "on_screen_points": [
+        "关注失败语义",
+        "初始化",
+        "重连",
+        "错误暴露"
+      ],
+      "visual_labels": [
+        "Distributed Runtime Map",
+        "Failure Path Diagram",
+        "Init / Reconnect / Error Cards",
+        "Risk Focus Frame"
+      ]
+    },
+    {
+      "scene_id": "scene-09",
+      "topic_id": "cand-001",
+      "kind": "mechanism",
+      "accent": "amber",
+      "eyebrow": "机制拆解",
+      "title": "把通信层变化放进隔离演练",
+      "subtitle": "先验证 API 与 runtime，再谈默认栈",
+      "narration": "这条机制非常工程化：先把新能力放进隔离环境，而不是直接推到共享集群。因为材料给出的主线是 `nccl2` 与 c10d fault-tolerance 的概念进入版本内容，所以最合理的验证顺序，是先检查 API 能否正常初始化，再观察最小进程组里的 runtime 行为和失败语义。这样做的重点是保留回退路径，尤其因为部分功能带有 experimental 性质。",
+      "on_screen_points": [
+        "隔离环境优先",
+        "先 API 初始化",
+        "再看 runtime 行为",
+        "保留回退路径"
+      ],
+      "visual_labels": [
+        "Isolation First Flow",
+        "API Check Ladder",
+        "Runtime Observation Panel",
+        "Rollback Path"
+      ]
+    },
+    {
+      "scene_id": "scene-10",
+      "topic_id": "cand-001",
+      "kind": "evidence_and_limits",
+      "accent": "amber",
+      "eyebrow": "演示三 + 限制",
+      "title": "最小 DDP 演练能证明什么，不能证明什么",
+      "subtitle": "验证行为变化，不声称生产容错已被证明",
+      "narration": "最后一个实验，用 2 个或少量进程跑最小 DDP 训练脚本，在隔离环境里测试 `nccl2` 或 c10d 相关新能力是否能正常初始化、重连，或者暴露更清晰的失败语义。它是可复现的行为检查，不是生产可靠性证明。这里必须明确两层限制：官方来源只能确认“功能已发布”；演示里看到的任何现象，也只代表当前环境，不能外推到所有硬件、模型或部署方式。",
+      "on_screen_points": [
+        "2 个或少量进程",
+        "最小 DDP 脚本",
+        "检查初始化/重连/失败语义",
+        "限制：非生产证明"
+      ],
+      "visual_labels": [
+        "Terminal DDP Steps",
+        "Process Group Diagram",
+        "Failure Semantics Timeline",
+        "Environment-Bound Evidence"
+      ]
+    },
+    {
+      "scene_id": "scene-11",
+      "topic_id": "cand-001",
+      "kind": "evidence_and_limits",
+      "accent": "cyan",
+      "eyebrow": "证据边界",
+      "title": "这期能确认发布，不能替代独立实证",
+      "subtitle": "来源只有 release blog 与 release notes",
+      "narration": "把证据边界单独收紧一下：本期主要来源是官方 release blog 和对应的 GitHub release notes。它们足以支持“这些功能已经发布、值得纳入升级验证清单”，但不足以支持“已在所有生产场景证明更快或更稳”。同时，材料也明确提醒，很多收益是 hardware-specific 或 stack-specific；所以任何 benchmark、稳定性结论，都必须回到你的 workload、dtype、device 与部署方式上重测。",
+      "on_screen_points": [
+        "官方 blog",
+        "GitHub release notes",
+        "确认发布",
+        "不能替代独立 benchmark"
+      ],
+      "visual_labels": [
+        "Source URL Cards",
+        "Evidence Boundary Box",
+        "Hardware / Stack Specific",
+        "Retest Matrix"
+      ]
+    },
+    {
+      "scene_id": "scene-12",
+      "topic_id": null,
+      "kind": "decision_guide",
+      "accent": "violet",
+      "eyebrow": "决策指南",
+      "title": "哪些团队应测，哪些团队先别动",
+      "subtitle": "把需求映射回唯一主题",
+      "narration": "最后把决策说清楚。如果你已经依赖 `torch.compile`，或过去在 dynamic shape、complex tensor、kernel 选择上遇到过问题；如果你维护 distributed 作业，通信 backend 与故障处理是痛点；如果你有 Apple Silicon 开发环境；并且你能做版本对照实验，那么 PyTorch 2.14 值得进入验证队列。相反，如果你没有 CI benchmark、golden outputs 或 rehearsal 环境，或者这些能力与你的 workload 基本无关，就先不要直接全量升级。",
+      "on_screen_points": [
+        "依赖 torch.compile → 去验证",
+        "有 distributed 痛点 → 去演练",
+        "能做对照实验 → 可进入队列",
+        "无基线环境 → 先别全量升级"
+      ],
+      "visual_labels": [
+        "Needs-to-Topic Matrix",
+        "Use / Not Use Split",
+        "Validation Readiness Checklist",
+        "Upgrade Queue Decision"
+      ]
+    }
+  ]
+}

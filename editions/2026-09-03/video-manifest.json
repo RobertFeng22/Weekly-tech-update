@@ -1,0 +1,21 @@
+{
+  "status": "rendered",
+  "edition_sha256": "e29b5fa6c9432d4f80e3256c69cb74265d61c1f759bf29ba2a172bae825f9640",
+  "video_url": "https://github.com/RobertFeng22/Weekly-tech-update/releases/download/weekly-2026-09-03/ai-weekly-2026-09-03-zh.mp4",
+  "video_file": "ai-weekly-2026-09-03-zh.mp4",
+  "duration_seconds": 441.1,
+  "scene_count": 12,
+  "director_model": "gpt-5.4",
+  "tts_model": "gpt-4o-mini-tts",
+  "tts_voice": "cedar",
+  "ai_voice_disclosure": "本视频旁白由 OpenAI 的人工智能语音生成，并非真人录音。",
+  "remotion": {
+    "composition": "WeeklyAI",
+    "fps": 30,
+    "width": 1920,
+    "height": 1080,
+    "props": "remotion-props.json"
+  },
+  "video_bytes": 62110011,
+  "sha256": "ee43a40956843b3bd7e4ace6cea20094f82783e43f214225d557a38d6c11f2bb"
+}

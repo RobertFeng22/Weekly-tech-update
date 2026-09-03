@@ -46,3 +46,11 @@
 
 - https://pytorch.org/blog/pytorch-2-14-release-blog/
 - https://github.com/pytorch/pytorch/releases/tag/v2.14.0
+
+<!-- WEEKLY_VIDEO_START -->
+## 教学视频
+
+[观看 Remotion 教学视频](https://github.com/RobertFeng22/Weekly-tech-update/releases/download/weekly-2026-09-03/ai-weekly-2026-09-03-zh.mp4)
+
+> 本视频旁白由 OpenAI 的人工智能语音生成，并非真人录音。
+<!-- WEEKLY_VIDEO_END -->
