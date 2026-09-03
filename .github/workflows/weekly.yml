@@ -21,10 +21,13 @@ concurrency:
 jobs:
   generate:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 120
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'gpt-5.4' }}
+      OPENAI_VIDEO_MODEL: ${{ vars.OPENAI_VIDEO_MODEL || vars.OPENAI_MODEL || 'gpt-5.4' }}
+      OPENAI_TTS_MODEL: ${{ vars.OPENAI_TTS_MODEL || 'gpt-4o-mini-tts' }}
+      OPENAI_TTS_VOICE: ${{ vars.OPENAI_TTS_VOICE || 'cedar' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -35,11 +38,23 @@ jobs:
           python-version: "3.12"
           cache: pip
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install CJK fonts
+        run: sudo apt-get update && sudo apt-get install -y fonts-noto-cjk
+
       - name: Install
-        run: pip install '.[dev]'
+        run: |
+          pip install '.[dev]'
+          npm ci
 
       - name: Test
-        run: pytest -q
+        run: |
+          pytest -q
+          npm run typecheck
 
       - name: Generate edition
         env:
@@ -47,7 +62,36 @@ jobs:
         run: |
           args=(--output-root editions --max-topics 3 --minimum-score 70)
           if [[ -n "$INPUT_AS_OF" ]]; then args+=(--as-of "$INPUT_AS_OF"); fi
-          weekly-tech-update "${args[@]}"
+          edition_dir=$(weekly-tech-update "${args[@]}")
+          echo "EDITION_DIR=$edition_dir" >> "$GITHUB_ENV"
+          echo "EDITION_DATE=$(basename "$edition_dir")" >> "$GITHUB_ENV"
+
+      - name: Generate video plan and OpenAI TTS
+        run: |
+          weekly-tech-video prepare \
+            --edition-dir "$EDITION_DIR" \
+            --public-root public \
+            --repository "$GITHUB_REPOSITORY"
+
+      - name: Render Remotion video
+        run: |
+          video_path="$EDITION_DIR/ai-weekly-$EDITION_DATE-zh.mp4"
+          npm run render:video -- \
+            "$video_path" \
+            --props="$EDITION_DIR/remotion-props.json" \
+            --codec=h264 \
+            --crf=18 \
+            --audio-bitrate=192k \
+            --concurrency=2 \
+            --log=error
+          echo "VIDEO_PATH=$video_path" >> "$GITHUB_ENV"
+
+      - name: Finalize video metadata and link
+        run: |
+          weekly-tech-video finalize \
+            --edition-dir "$EDITION_DIR" \
+            --video-path "$VIDEO_PATH" \
+            --repository "$GITHUB_REPOSITORY"
 
       - name: Commit edition
         run: |
@@ -61,11 +105,25 @@ jobs:
             git push
           fi
 
-      - name: Upload source pack
+      - name: Publish teaching video release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="weekly-$EDITION_DATE"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" "$VIDEO_PATH" --clobber
+          else
+            gh release create "$tag" "$VIDEO_PATH" \
+              --target main \
+              --title "AI Weekly · $EDITION_DATE" \
+              --notes "Source-grounded weekly AI teaching video. Narration is AI-generated."
+          fi
+
+      - name: Upload edition and video artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: weekly-ai-source-pack
+          name: weekly-ai-${{ env.EDITION_DATE }}
           path: editions/
           if-no-files-found: warn
           retention-days: 30

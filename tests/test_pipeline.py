@@ -10,6 +10,7 @@ from weekly_tech_update.models import (
     Category,
     Evaluation,
     EvaluationBatch,
+    VideoPlan,
     WeeklyEdition,
 )
 from weekly_tech_update.pipeline import (
@@ -100,7 +101,7 @@ def test_max_topics_cannot_exceed_three():
 
 
 def test_openai_response_schemas_do_not_emit_unsupported_uri_format():
-    for schema_type in (CandidateBatch, EvaluationBatch, WeeklyEdition):
+    for schema_type in (CandidateBatch, EvaluationBatch, WeeklyEdition, VideoPlan):
         schema_json = json.dumps(schema_type.model_json_schema())
         assert '"format": "uri"' not in schema_json
 

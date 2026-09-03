@@ -62,11 +62,11 @@ def render_weekly_update(edition: WeeklyEdition, score_by_id: dict[str, float]) 
     return "\n".join(sections).strip() + "\n"
 
 
-def render_notebooklm_source(edition: WeeklyEdition, score_by_id: dict[str, float]) -> str:
+def render_video_source(edition: WeeklyEdition, score_by_id: dict[str, float]) -> str:
     sections = [
-        f"# NotebookLM Source Pack: AI Weekly {edition.window_start} — {edition.window_end}",
+        f"# Remotion Video Source: AI Weekly {edition.window_start} — {edition.window_end}",
         "",
-        "本文件只包含通过证据门槛的主题。生成 Video Overview 时，要求所有事实仅来自本文件及所列 primary sources。",
+        "本文件只包含通过证据门槛的主题。VideoPlan、OpenAI TTS 旁白与 Remotion 画面必须以本文件及 manifest 中的 verified evidence 为边界。",
     ]
     for index, topic in enumerate(edition.topics, start=1):
         sections.extend(
@@ -91,8 +91,8 @@ def render_notebooklm_source(edition: WeeklyEdition, score_by_id: dict[str, floa
                 "### Source URLs",
                 _links(topic.source_urls),
                 "",
-                "### Video steering prompt",
-                topic.notebooklm_steering_prompt,
+                "### Video direction",
+                topic.video_direction,
             ]
         )
     return "\n".join(sections).strip() + "\n"
@@ -115,8 +115,8 @@ def write_outputs(
     (output_dir / "weekly-update.md").write_text(
         render_weekly_update(edition, score_by_id), encoding="utf-8"
     )
-    (output_dir / "notebooklm-source.md").write_text(
-        render_notebooklm_source(edition, score_by_id), encoding="utf-8"
+    (output_dir / "video-source.md").write_text(
+        render_video_source(edition, score_by_id), encoding="utf-8"
     )
     manifest = {
         "edition": edition.model_dump(mode="json"),

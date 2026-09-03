@@ -4,4 +4,9 @@ __pycache__/
 *.py[cod]
 .DS_Store
 .env
-
+node_modules/
+public/generated/
+video/public/generated/
+editions/**/audio/
+editions/**/*.mp4
+editions/**/*.wav

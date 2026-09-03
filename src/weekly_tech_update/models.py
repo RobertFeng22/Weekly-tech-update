@@ -27,6 +27,22 @@ class Category(StrEnum):
     TRICK = "practical_trick"
 
 
+class VideoSceneKind(StrEnum):
+    INTRO = "intro"
+    FUNNEL = "evaluation_funnel"
+    PROBLEM = "problem"
+    MECHANISM = "mechanism"
+    DEMO = "demo"
+    EVIDENCE = "evidence_and_limits"
+    DECISION = "decision_guide"
+
+
+class VideoAccent(StrEnum):
+    CYAN = "cyan"
+    VIOLET = "violet"
+    AMBER = "amber"
+
+
 class Candidate(BaseModel):
     candidate_id: str = Field(min_length=1, max_length=80)
     title: str = Field(min_length=4, max_length=180)
@@ -92,7 +108,7 @@ class Topic(BaseModel):
     when_not_to_use: list[str] = Field(min_length=1, max_length=6)
     caveats: list[str] = Field(min_length=1, max_length=8)
     source_urls: list[SourceUrl] = Field(min_length=1, max_length=10)
-    notebooklm_steering_prompt: str = Field(min_length=80)
+    video_direction: str = Field(min_length=80)
 
 
 class WeeklyEdition(BaseModel):
@@ -106,6 +122,39 @@ class WeeklyEdition(BaseModel):
         ids = [topic.candidate_id for topic in self.topics]
         if len(ids) != len(set(ids)):
             raise ValueError("edition contains duplicate candidate IDs")
+        return self
+
+
+class VideoScene(BaseModel):
+    scene_id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]{1,63}$")
+    topic_id: str | None = None
+    kind: VideoSceneKind
+    accent: VideoAccent
+    eyebrow: str = Field(min_length=2, max_length=48)
+    title: str = Field(min_length=4, max_length=96)
+    subtitle: str = Field(min_length=10, max_length=180)
+    narration: str = Field(min_length=120, max_length=480)
+    on_screen_points: list[str] = Field(min_length=1, max_length=4)
+    visual_labels: list[str] = Field(default_factory=list, max_length=6)
+
+
+class VideoPlan(BaseModel):
+    window_start: date
+    window_end: date
+    title: str = Field(min_length=4, max_length=80)
+    subtitle: str = Field(min_length=10, max_length=160)
+    disclosure: str = Field(min_length=20, max_length=100)
+    scenes: list[VideoScene] = Field(min_length=8, max_length=16)
+
+    @model_validator(mode="after")
+    def ensure_scene_structure(self) -> "VideoPlan":
+        scene_ids = [scene.scene_id for scene in self.scenes]
+        if len(scene_ids) != len(set(scene_ids)):
+            raise ValueError("video plan contains duplicate scene IDs")
+        if self.scenes[0].kind is not VideoSceneKind.INTRO:
+            raise ValueError("video plan must start with an intro scene")
+        if self.scenes[-1].kind is not VideoSceneKind.DECISION:
+            raise ValueError("video plan must end with a decision guide")
         return self
 
 

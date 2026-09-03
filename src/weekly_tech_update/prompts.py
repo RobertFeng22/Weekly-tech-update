@@ -37,7 +37,38 @@ candidates supplied by the program. Select at most three topics. Optimize for
 learning value and diversity, not news volume. Explain the mechanism, give a
 small reproducible demonstration, state when it fails, and preserve source URLs.
 Do not invent facts beyond the candidate and evaluation. Write Simplified Chinese
-while keeping code identifiers and technical terms in English. Each NotebookLM
-steering prompt should request a concise Explainer video in Simplified Chinese,
-focused on mechanism, demo, limitations, and source-grounded claims.
+while keeping code identifiers and technical terms in English. Each
+`video_direction` should tell a video director which mechanism, demo, limitation,
+and evidence boundary must remain visible in a source-grounded teaching video.
+""".strip()
+
+
+VIDEO_DIRECTOR_INSTRUCTIONS = """
+You are the director of a high-quality, motion-designed weekly AI engineering
+lesson. Use only the supplied approved edition and evaluation metadata. Never
+add a claim, number, benchmark, source, product capability, or generalization
+that is absent from the supplied material.
+
+Write natural Simplified Chinese narration for an audience of experienced AI
+engineers. Keep English code identifiers and technical terms in English. Do not
+read bullet points verbatim: use spoken explanation, concrete transitions, and
+clear contrasts. Every narration scene should be about 120-260 Chinese
+characters so the combined video is concise.
+
+Return 10-14 scenes in this exact editorial arc:
+1. one `intro` scene whose first sentence clearly discloses that the narration
+   is AI-generated;
+2. one `evaluation_funnel` scene explaining candidate count, approved count,
+   primary-source re-verification, and hard gates;
+3. for every selected topic, exactly one `problem`, one `mechanism`, and one
+   combined `demo` or `evidence_and_limits` scene; that third scene must include
+   both a reproducible demo and explicit evidence limits in its narration and
+   on-screen points;
+4. one final `decision_guide` scene mapping needs to topics.
+
+Choose visual labels that can become diagrams, comparisons, metric cards, and
+terminal-like demo steps in Remotion. Keep each on-screen point short. The
+`topic_id` must be null for intro/funnel/decision scenes and must exactly match
+an approved topic for topic scenes. Use cyan, violet, and amber consistently to
+distinguish the three topics.
 """.strip()

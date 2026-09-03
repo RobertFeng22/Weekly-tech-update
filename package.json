@@ -1,0 +1,23 @@
+{
+  "name": "weekly-ai-tech-video",
+  "private": true,
+  "version": "0.2.0",
+  "scripts": {
+    "studio": "remotion studio video/src/index.tsx",
+    "render:video": "remotion render video/src/index.tsx WeeklyAI",
+    "render:still": "remotion still video/src/index.tsx WeeklyAI",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@remotion/media": "4.0.517",
+    "react": "19.1.1",
+    "react-dom": "19.1.1",
+    "remotion": "4.0.517"
+  },
+  "devDependencies": {
+    "@remotion/cli": "4.0.517",
+    "@types/react": "19.1.10",
+    "@types/react-dom": "19.1.7",
+    "typescript": "5.9.2"
+  }
+}
