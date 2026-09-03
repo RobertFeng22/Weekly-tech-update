@@ -4,6 +4,7 @@ import hashlib
 import json
 import math
 import re
+import struct
 import wave
 from dataclasses import dataclass
 from pathlib import Path
@@ -215,8 +216,52 @@ def split_caption_chunks(text: str, *, max_chars: int = 34) -> list[str]:
 
 
 def wav_duration_seconds(path: Path) -> float:
-    with wave.open(str(path), "rb") as wav_file:
-        return wav_file.getnframes() / wav_file.getframerate()
+    """Return duration from actual WAV payload bytes.
+
+    Streaming WAV encoders may put ``0xFFFFFFFF`` in the RIFF and data chunk
+    sizes because the final length is unknown when the header is emitted. The
+    stdlib ``wave`` module exposes that sentinel as a huge frame count, so walk
+    the chunks and cap the data length at the bytes actually present on disk.
+    """
+    file_size = path.stat().st_size
+    with path.open("rb") as wav_file:
+        header = wav_file.read(12)
+        if len(header) != 12 or header[:4] not in {b"RIFF", b"RF64"}:
+            raise ValueError(f"unsupported WAV header: {path}")
+        if header[8:] != b"WAVE":
+            raise ValueError(f"invalid WAV container: {path}")
+
+        byte_rate: int | None = None
+        while wav_file.tell() + 8 <= file_size:
+            chunk_id = wav_file.read(4)
+            chunk_size_raw = wav_file.read(4)
+            if len(chunk_size_raw) != 4:
+                break
+            chunk_size = struct.unpack("<I", chunk_size_raw)[0]
+            chunk_start = wav_file.tell()
+
+            if chunk_id == b"fmt ":
+                fmt = wav_file.read(min(chunk_size, 16))
+                if len(fmt) < 16:
+                    raise ValueError(f"incomplete WAV fmt chunk: {path}")
+                byte_rate = struct.unpack("<I", fmt[8:12])[0]
+            elif chunk_id == b"data":
+                if not byte_rate:
+                    raise ValueError(f"WAV data chunk precedes fmt chunk: {path}")
+                available_bytes = max(file_size - chunk_start, 0)
+                data_bytes = (
+                    available_bytes
+                    if chunk_size == 0xFFFFFFFF
+                    else min(chunk_size, available_bytes)
+                )
+                return data_bytes / byte_rate
+
+            if chunk_size == 0xFFFFFFFF:
+                break
+            next_chunk = chunk_start + chunk_size + (chunk_size % 2)
+            wav_file.seek(min(next_chunk, file_size))
+
+    raise ValueError(f"WAV file has no readable data chunk: {path}")
 
 
 def synthesize_scene_audio(
@@ -283,6 +328,11 @@ def build_remotion_props(
     }
     for scene, audio_path in zip(plan.scenes, audio_paths, strict=True):
         audio_seconds = wav_duration_seconds(audio_path)
+        if not 0.5 < audio_seconds <= 180:
+            raise ValueError(
+                f"scene {scene.scene_id} has implausible audio duration: "
+                f"{audio_seconds:.3f}s"
+            )
         duration_in_frames = max(
             math.ceil((audio_seconds + config.tail_padding_seconds) * config.fps),
             config.fps * 4,

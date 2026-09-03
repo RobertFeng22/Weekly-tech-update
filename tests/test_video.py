@@ -1,3 +1,4 @@
+import struct
 import wave
 from datetime import date
 from pathlib import Path
@@ -164,6 +165,17 @@ def test_wav_duration_drives_remotion_timeline(tmp_path: Path):
     assert props["totalDurationInFrames"] == sum(
         scene["durationInFrames"] for scene in props["scenes"]
     )
+
+
+def test_streaming_wav_sentinel_uses_actual_payload_size(tmp_path: Path):
+    path = tmp_path / "streaming.wav"
+    _write_silent_wav(path, seconds=1.25)
+    payload = bytearray(path.read_bytes())
+    assert payload[36:40] == b"data"
+    payload[4:8] = struct.pack("<I", 0xFFFFFFFF)
+    payload[40:44] = struct.pack("<I", 0xFFFFFFFF)
+    path.write_bytes(payload)
+    assert wav_duration_seconds(path) == pytest.approx(1.25)
 
 
 def test_release_url_is_stable():
