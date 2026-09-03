@@ -1,0 +1,746 @@
+{
+  "edition": {
+    "window_start": "2026-08-27",
+    "window_end": "2026-09-02",
+    "editorial_note": "本期候选里只有 1 个经过评估且在时间窗口内的主题，因此本版只选 1 个。选择标准优先看可教学性与可落地性，而不是新闻数量。需要特别提醒：该主题的主要证据来自官方 release blog 与对应 release notes，能确认“功能已发布”，但不能把它当成“已在所有生产场景证明更快或更稳”的独立实证。",
+    "topics": [
+      {
+        "candidate_id": "cand-001",
+        "title": "PyTorch 2.14：把编译器、分布式容错与动态 shape 一次性带进可复测升级清单",
+        "category": "engineering_practice",
+        "one_sentence_value": "如果你的团队使用 `torch.compile`、大规模 distributed training，或需要处理 dynamic shapes，PyTorch 2.14 值得做一轮有边界的升级验证，因为它一次性引入了新的 GEMM backend、`nccl2`、c10d fault-tolerance 概念和 `@dynamic_spec`。",
+        "why_now": "该版本发布于 2026-09-02，正好落在本期窗口；而且它不是单点功能更新，而是同时影响 compiler、distributed runtime、shape contract 与设备支持，适合作为一次系统性回归测试的触发点。",
+        "lesson": "核心机制不是“升级就一定更快”，而是“框架能力边界发生了变化，需要用 workload-based validation 重新测量”。具体说：1) Inductor 新增 NVGEMM backend，理论上会改变某些 matrix-heavy 图的 kernel 选择；2) 新的 in-tree `nccl2` backend 与 c10d fault-tolerance 概念，意味着 distributed job 的故障恢复与通信层集成方式值得重测；3) `@dynamic_spec` 把 dynamic shape 约束显式化，让同一份 shape contract 可跨 `torch.compile`、`torch.export`、`make_fx`；4) 还有 Apple Silicon 线性代数改进与 experimental complex-tensor support in `torch.compile`。教学重点应放在“先做最小复现，再决定是否升级默认栈”。",
+        "hands_on_demo": [
+          "Demo 1：为现有 matrix-heavy 模型建立 compile baseline。步骤：选一个小型 MLP 或 attention block，分别在当前 PyTorch 版本与 2.14 上运行 `torch.compile(model)`，固定 batch size、dtype 与 device，记录吞吐、首次编译时间与 steady-state latency。目标不是证明 2.14 一定更快，而是复现“升级后 backend 选择可能变化，因此需要重新 benchmark”。",
+          "Demo 2：为 dynamic shape 建立最小 contract 测试。准备一个输入 shape 会变化的 toy model，例如 batch size 或 sequence length 改变；在 2.14 中尝试用 `@dynamic_spec` 描述 shape 约束，并验证同一模型能否在 `torch.compile`、`torch.export` 或 `make_fx` 路径上保持一致的 shape 语义。重点展示“声明式 shape contract”如何减少隐式假设。",
+          "Demo 3：为 distributed reliability 建立演练脚本。用 2 个或少量进程跑一个最小 DDP 训练脚本，在隔离环境中测试 `nccl2`/c10d 相关新能力是否能正常初始化、重连或暴露更清晰的失败语义。这里的演示目标是验证 API 与 runtime 行为变化，不是声称真实集群容错已经被完全解决。"
+        ],
+        "when_to_use": [
+          "你已经依赖 `torch.compile`，并且过去在 dynamic shape、complex tensor 或 kernel 选择上遇到过不稳定/不可用问题。",
+          "你维护大规模 distributed training 或 inference 作业，通信 backend 与故障处理是实际运维痛点。",
+          "你有 Apple Silicon 开发者环境，过去因为线性代数能力或性能限制做了额外规避。",
+          "你能做版本对照实验，而不是在没有 benchmark 与回归测试的情况下直接全量升级。"
+        ],
+        "when_not_to_use": [
+          "你的栈对框架升级极其敏感，但当前没有 CI benchmark、golden outputs 或 distributed rehearsal 环境。",
+          "你的 workload 与 release 中提到的能力基本无关，例如既不用 `torch.compile`，也没有 dynamic shapes 或 distributed 需求。",
+          "你希望从一篇 release blog 直接得到“确定性能提升百分比”或“生产可靠性已被证明”的结论。"
+        ],
+        "caveats": [
+          "证据边界：主要来源是官方 release blog 与 release notes，说明功能存在，但不是独立 benchmark study。",
+          "很多收益是 hardware-specific 或 stack-specific；NVGEMM、distributed backend、Apple Silicon、complex tensor 支持的价值取决于你的模型、dtype、device 与部署方式。",
+          "“应该 benchmark / retest”是基于版本内容作出的工程推论，不等于官方已证明所有场景都会改善。",
+          "部分功能带有 experimental 性质，迁移时应保留回退路径。"
+        ],
+        "source_urls": [
+          "https://pytorch.org/blog/pytorch-2-14-release-blog/",
+          "https://github.com/pytorch/pytorch/releases/tag/v2.14.0"
+        ],
+        "video_direction": "视频必须始终把“机制—演示—限制—证据边界”四件事讲清。机制上，明确说明 2.14 触及四条主线：Inductor 的 NVGEMM、in-tree `nccl2`、c10d fault-tolerance 概念、`@dynamic_spec` 的声明式 dynamic shapes；不要把它包装成单纯性能新闻。演示上，只做可复现的小实验：一个 `torch.compile` 前后对照 benchmark、一个 dynamic shape contract 小例子、一个最小 distributed 初始化/失败演练。限制上，必须口播并字幕强调：官方来源确认“功能发布”，不确认“普遍性能提升”或“生产可靠性已被独立证明”；任何性能数字都只能来自演示环境，不能外推。证据边界上，画面中应展示来源 URL，并说明本期内容仅依据 release blog 与 GitHub release notes，不超出这些来源做额外事实断言。"
+      }
+    ]
+  },
+  "candidates": [
+    {
+      "candidate_id": "cand-001",
+      "title": "PyTorch 2.14 Release Blog",
+      "category": "engineering_practice",
+      "published_at": "2026-09-02",
+      "summary": "PyTorch 2.14 ships several directly actionable production features: NVGEMM as a new GEMM backend in Inductor, a new in-tree `nccl2` distributed backend, first-class fault-tolerance concepts in c10d, declarative dynamic shapes via `@dynamic_spec`, broader accelerator support, and experimental complex-tensor support in `torch.compile`. For teams running large training or inference jobs, this is a concrete framework upgrade with performance, reliability, and portability implications.",
+      "novelty": "Notable because it bundles low-level compiler/kernel changes, distributed runtime changes, and shape-system improvements in one release rather than a marketing launch.",
+      "practitioner_value": "Engineers can reevaluate compiler baselines, retry previously fragile dynamic-shape workloads, and revisit distributed fault handling and Apple Silicon support with fewer custom patches.",
+      "concrete_takeaways": [
+        "Benchmark Inductor with NVGEMM on matrix-heavy workloads, especially if you use fused epilogues or low-precision paths.",
+        "Test the new `nccl2` backend and c10d fault-tolerance features for jobs where communicator failures or reconfiguration matter.",
+        "Prototype declarative dynamic shapes with `@dynamic_spec` so the same shape contract can travel across `torch.compile`, `torch.export`, and `make_fx`.",
+        "If you support Mac development or edge experimentation, retest native linear algebra on Apple Silicon."
+      ],
+      "limitations": [
+        "Release blog, not an independent benchmark study.",
+        "Some features are experimental or hardware-specific, so impact will vary by stack."
+      ],
+      "source_urls": [
+        "https://pytorch.org/blog/pytorch-2-14-release-blog/"
+      ],
+      "primary_source_urls": [
+        "https://pytorch.org/blog/pytorch-2-14-release-blog/"
+      ]
+    },
+    {
+      "candidate_id": "cand-002",
+      "title": "Modernizing and scaling support operations with generative AI on AWS",
+      "category": "engineering_practice",
+      "published_at": "2026-09-02",
+      "summary": "AWS published a concrete reference architecture for support operations: generate SOPs from training videos, use RAG during ticket resolution, predict SLA risk, optimize workload distribution, and automate ticket metadata/status updates with human-in-the-loop controls. This is useful less as a product announcement than as an operations pattern for AI-assisted back-office workflows.",
+      "novelty": "Operationalizes multimodal knowledge capture plus workflow automation in one stack, with explicit human-control boundaries.",
+      "practitioner_value": "Useful for teams building internal agent systems around ticket queues, service desks, or analyst operations rather than end-user chatbots.",
+      "concrete_takeaways": [
+        "Treat recordings and tribal knowledge as ingestible assets for SOP generation, not just text documents.",
+        "Split the system into guidance, prediction, and action layers: RAG for resolution, ML for SLA/workload prediction, and guarded agent workflows for updates.",
+        "Keep agents in a constrained automation role with human review on sensitive actions."
+      ],
+      "limitations": [
+        "Architecture post rather than reusable open-source code release.",
+        "AWS-oriented implementation details may not transfer 1:1 to other clouds."
+      ],
+      "source_urls": [
+        "https://aws.amazon.com/blogs/machine-learning/modernizing-and-scaling-support-operations-with-generative-ai-on-aws/"
+      ],
+      "primary_source_urls": [
+        "https://aws.amazon.com/blogs/machine-learning/modernizing-and-scaling-support-operations-with-generative-ai-on-aws/"
+      ]
+    },
+    {
+      "candidate_id": "cand-003",
+      "title": "What’s new in AI infrastructure and orchestration in August",
+      "category": "practical_trick",
+      "published_at": "2026-08-31",
+      "summary": "Google Cloud’s August AI infrastructure roundup contains one especially practical inference detail: GKE Inference Gateway uses prefix caching to improve LLM serving efficiency, with Google citing an independent benchmark showing higher throughput and lower wait/inter-token latency than another managed Kubernetes service. Even though the post is a roundup, the key mechanism is concrete and useful for serving teams.",
+      "novelty": "Highlights prefix caching as an infrastructure-level serving optimization, not just a model-runtime tweak.",
+      "practitioner_value": "Good prompt/inference-platform reminder: if requests share long common prefixes, infra support for KV-prefix reuse can materially change cost and latency.",
+      "concrete_takeaways": [
+        "Measure shared-prefix rates in your production prompts; if they are high, evaluate gateway/runtime support for prefix caching.",
+        "Benchmark prefill-heavy workloads separately from decode-heavy ones when selecting serving infrastructure.",
+        "Treat routing/gateway features as part of inference optimization, not just model-server internals."
+      ],
+      "limitations": [
+        "This source is a monthly roundup, so only one sub-item is deeply actionable.",
+        "Benchmark claim is summarized in the blog; deeper validation would require the linked benchmark document."
+      ],
+      "source_urls": [
+        "https://cloud.google.com/blog/topics/ai-infrastructure/whats-new-in-ai-infrastructure-this-month"
+      ],
+      "primary_source_urls": [
+        "https://cloud.google.com/blog/topics/ai-infrastructure/whats-new-in-ai-infrastructure-this-month"
+      ]
+    },
+    {
+      "candidate_id": "cand-004",
+      "title": "Executable Code Actions Elicit Better LLM Agents",
+      "category": "valuable_paper",
+      "published_at": "2026-09-01",
+      "summary": "This paper argues that agents should emit executable Python code rather than fixed JSON/text actions, creating a unified and composable action space called CodeAct. The central idea is that code actions let the model compose tools, revise prior actions, and adapt across multi-turn interactions more flexibly than rigid schemas.",
+      "novelty": "Reframes agent actions as executable programs rather than API-shaped tokens, pushing agent design toward interpreter-backed runtimes.",
+      "practitioner_value": "Relevant for agent builders who feel constrained by brittle JSON tool schemas; it suggests using a sandboxed interpreter as the main action substrate.",
+      "concrete_takeaways": [
+        "For complex agent tasks, compare code-emitting agents against JSON tool-call agents rather than assuming structured outputs are always superior.",
+        "If you adopt this pattern, invest in strong sandboxing, execution tracing, and step-level observability.",
+        "Use code as the composition layer when tools need chaining, loops, or stateful transformations."
+      ],
+      "limitations": [
+        "Paper-page summary only; implementation details and eval nuances require the full paper/code.",
+        "Interpreter-based agents raise safety and containment requirements."
+      ],
+      "source_urls": [
+        "https://huggingface.co/papers?q=LLM-Agents"
+      ],
+      "primary_source_urls": [
+        "https://huggingface.co/papers?q=LLM-Agents"
+      ]
+    },
+    {
+      "candidate_id": "cand-005",
+      "title": "AgentSPEX: An Agent SPecification and EXecution Language",
+      "category": "valuable_paper",
+      "published_at": "2026-09-01",
+      "summary": "AgentSPEX proposes a dedicated language for specifying LLM-agent workflows with typed steps, branching, loops, parallel execution, reusable submodules, explicit state management, and a harness that supports sandboxing, checkpointing, verification, and logging. It targets a real pain point: agent workflows that are hard to control or maintain when encoded as prompt-plus-Python glue.",
+      "novelty": "Moves agent orchestration toward a DSL with explicit control flow and runtime semantics, instead of hiding behavior in prompts or ad hoc framework code.",
+      "practitioner_value": "Strong fit for teams standardizing internal agent workflows and seeking reviewable, versionable specifications instead of opaque orchestration logic.",
+      "concrete_takeaways": [
+        "Separate workflow specification from harness implementation so control flow can be reviewed like infrastructure code.",
+        "Make state, branching, and retries explicit rather than implicit in prompts.",
+        "Add checkpointing and verification hooks as first-class runtime concepts in long-running agents."
+      ],
+      "limitations": [
+        "Research proposal; adoption cost depends on tooling maturity.",
+        "Need the full paper and code to judge ergonomics versus existing frameworks."
+      ],
+      "source_urls": [
+        "https://huggingface.co/papers?q=Agent+SPecification+and+EXecution+Language"
+      ],
+      "primary_source_urls": [
+        "https://huggingface.co/papers?q=Agent+SPecification+and+EXecution+Language"
+      ]
+    },
+    {
+      "candidate_id": "cand-006",
+      "title": "Capability Gates Are Not Authorization: Confused-Deputy Failures in LLM Agent Frameworks",
+      "category": "valuable_paper",
+      "published_at": "2026-09-01",
+      "summary": "This paper audits common agent frameworks and argues that exposing a tool is not the same as authorizing each concrete invocation. It proposes ScopeGate, a five-stage policy decision/enforcement pattern covering scope, authorization, money ceiling, idempotency, and default deny. For production agent systems with side effects, this is a sharp and actionable systems-security contribution.",
+      "novelty": "Turns a vague prompt-injection concern into a concrete authorization architecture for tool calls.",
+      "practitioner_value": "Immediately relevant to anyone wiring agents to payments, CRM, email, infra APIs, or transactional systems.",
+      "concrete_takeaways": [
+        "Re-authorize every model-emitted tool call with actual argument values, not just tool identity.",
+        "Add money ceilings and idempotency protections for any side-effecting action.",
+        "Default-deny tool execution unless a deterministic policy check passes."
+      ],
+      "limitations": [
+        "Paper-page summary rather than full methods section.",
+        "Claims about audited frameworks should be checked against the pinned commits and repo artifacts in the full paper."
+      ],
+      "source_urls": [
+        "https://huggingface.co/papers?q=LLM+agent+frameworks"
+      ],
+      "primary_source_urls": [
+        "https://huggingface.co/papers?q=LLM+agent+frameworks"
+      ]
+    },
+    {
+      "candidate_id": "cand-007",
+      "title": "Helpful Agent Meets Deceptive Judge: Understanding Vulnerabilities in Agentic Workflows",
+      "category": "valuable_paper",
+      "published_at": "2026-09-01",
+      "summary": "The paper studies a subtle failure mode in multi-agent systems: evaluator or judge agents that provide misleading feedback. It introduces a framework for judge behavior and a benchmark, WAFER-QA, using critiques grounded in retrieved web evidence to test robustness against deceptive or adversarial feedback.",
+      "novelty": "Focuses on the judge as an attack/failure surface, which is underexplored relative to planner or executor failures.",
+      "practitioner_value": "Useful for teams relying on critique loops, reviewer agents, or self-improvement pipelines where one model grades another.",
+      "concrete_takeaways": [
+        "Do not assume critic agents are trustworthy just because they improve average performance in demos.",
+        "Evaluate agent pipelines under misleading or adversarial review feedback, not only clean feedback.",
+        "Ground judge outputs in retrieved evidence where possible, and log the evidence path."
+      ],
+      "limitations": [
+        "Need the full paper to inspect benchmark realism and threat model.",
+        "Primarily diagnostic unless paired with concrete mitigations in implementation."
+      ],
+      "source_urls": [
+        "https://huggingface.co/papers?q=Agentic+workflows"
+      ],
+      "primary_source_urls": [
+        "https://huggingface.co/papers?q=Agentic+workflows"
+      ]
+    },
+    {
+      "candidate_id": "cand-008",
+      "title": "Matryoshka Agent: Unfolding Sub-Agents for Long-Horizon Machine Learning Engineering",
+      "category": "valuable_paper",
+      "published_at": "2026-09-01",
+      "summary": "Matryoshka Agent proposes a hierarchical agent design for long-horizon ML engineering tasks, with an orchestrator maintaining compact strategic state and sub-agents handling concrete environment interactions. The core contribution is architectural: decompose long noisy trajectories so planning and execution can scale under constrained context and compute budgets.",
+      "novelty": "Applies hierarchical decomposition directly to ML engineering tasks rather than generic toy-agent setups.",
+      "practitioner_value": "Relevant to teams building coding/ML agents that need to debug, iterate, and search over long solution paths without exhausting context windows.",
+      "concrete_takeaways": [
+        "Split orchestration from execution when tasks involve many environment interactions and retries.",
+        "Keep high-level exploration state compact and durable rather than replaying full histories into every step.",
+        "Standardize tool interfaces between orchestrator and sub-agents to swap specialists more easily."
+      ],
+      "limitations": [
+        "Paper-page summary only.",
+        "Real-world benefits depend heavily on harness quality and evaluation task design."
+      ],
+      "source_urls": [
+        "https://huggingface.co/papers?q=sub-agents"
+      ],
+      "primary_source_urls": [
+        "https://huggingface.co/papers?q=sub-agents"
+      ]
+    },
+    {
+      "candidate_id": "cand-009",
+      "title": "Web Agents with World Models: Learning and Leveraging Environment Dynamics in Web Navigation",
+      "category": "valuable_paper",
+      "published_at": "2026-09-01",
+      "summary": "This work introduces a world-model-augmented web agent that simulates action outcomes to avoid irreversible mistakes in long-horizon web tasks. A key technical detail is transition-focused observation abstraction: predicting salient state differences rather than full next observations from long HTML.",
+      "novelty": "Imports model-based planning ideas into web agents with a practical abstraction for messy HTML environments.",
+      "practitioner_value": "Interesting for browser-automation teams handling bookings, purchasing, form submission, or any workflow where a bad click has real cost.",
+      "concrete_takeaways": [
+        "For risky multi-step browser agents, add an explicit consequence-prediction stage before executing irreversible actions.",
+        "Model state deltas rather than full pages when learning environment dynamics from web traces.",
+        "Flag high-cost actions for extra simulation or human confirmation."
+      ],
+      "limitations": [
+        "Research-stage approach, likely expensive to implement end-to-end.",
+        "Browser task transfer to production enterprise apps remains uncertain."
+      ],
+      "source_urls": [
+        "https://huggingface.co/papers?q=web+agents"
+      ],
+      "primary_source_urls": [
+        "https://huggingface.co/papers?q=web+agents"
+      ]
+    },
+    {
+      "candidate_id": "cand-010",
+      "title": "Paper2Agent: Reimagining Research Papers As Interactive and Reliable AI Agents",
+      "category": "practical_trick",
+      "published_at": "2026-09-02",
+      "summary": "Paper2Agent proposes converting a research paper plus codebase into an MCP server/agent that can answer questions and operationalize the method, iteratively generating and running tests to improve robustness. For research teams, the practical trick is the packaging pattern: turn papers into executable interfaces rather than static reading material.",
+      "novelty": "Bridges papers, code, and MCP-style interfaces into a reusable agent artifact.",
+      "practitioner_value": "Could change how labs share reproducible methods internally: instead of docs plus repo, publish a tested research assistant around the work.",
+      "concrete_takeaways": [
+        "For internal research transfer, consider wrapping papers and code as structured agent services with tests.",
+        "Use iterative test generation to harden research artifacts before handing them to downstream users.",
+        "Treat MCP-style interfaces as a dissemination layer for methods, not only for end-user tools."
+      ],
+      "limitations": [
+        "Paper-page summary only; unclear how robust this is across messy or incomplete repos.",
+        "Likely sensitive to code quality and documentation quality of the source project."
+      ],
+      "source_urls": [
+        "https://huggingface.co/papers?q=research+papers"
+      ],
+      "primary_source_urls": [
+        "https://huggingface.co/papers?q=research+papers"
+      ]
+    },
+    {
+      "candidate_id": "cand-011",
+      "title": "FARS: A Fully Automated Research System Deployed at Scale",
+      "category": "valuable_paper",
+      "published_at": "2026-09-02",
+      "summary": "FARS presents a fully automated AI-for-AI research system that autonomously advances projects through ideation, planning, experimentation, and writing, while preserving proposals, code, logs, results, and manuscripts in a shared workspace. The strongest practical idea is the artifact discipline: maintain an auditable corpus of full runs, not just cherry-picked successes.",
+      "novelty": "Emphasizes deployment-at-scale and auditability over isolated demo papers.",
+      "practitioner_value": "Useful for teams building autonomous experimentation systems, especially if they need traceability and retrospective analysis rather than only final outputs.",
+      "concrete_takeaways": [
+        "Design automated research systems around persistent shared workspaces that store code, logs, results, and manuscripts together.",
+        "Keep failed and partial runs; they are necessary for evaluating system quality honestly.",
+        "Measure automation systems on corpus-level output and trace auditability, not only handpicked examples."
+      ],
+      "limitations": [
+        "Scale claims need full paper scrutiny.",
+        "A system producing many papers is not necessarily producing many high-value papers; downstream quality filters still matter."
+      ],
+      "source_urls": [
+        "https://huggingface.co/papers?q=automated+research+system"
+      ],
+      "primary_source_urls": [
+        "https://huggingface.co/papers?q=automated+research+system"
+      ]
+    }
+  ],
+  "evaluations": [
+    {
+      "candidate_id": "cand-001",
+      "factual_accuracy": 4,
+      "evidence_strength": 4,
+      "practical_value": 4,
+      "novelty": 3,
+      "transferability": 3,
+      "teachability": 4,
+      "confidence": 4,
+      "red_flags": [],
+      "counter_evidence": [
+        "Primary evidence is a vendor release blog plus its linked GitHub release notes, not independent benchmarking.",
+        "Several touted items are hardware- or stack-specific, so benefits will vary materially by workload and platform.",
+        "The claim that teams should 'benchmark' or 'retest' is an inference from the release contents rather than an empirical outcome study."
+      ],
+      "rationale": "Verified that the item was published within the window on September 2, 2026 and that the linked release notes repeat the central feature claims: NVGEMM in Inductor, a new nccl2 backend, first-class c10d fault-tolerance concepts, declarative dynamic shapes via @dynamic_spec, Apple Silicon linear algebra work, and experimental complex-tensor support in torch.compile. What remains uncertain is real-world magnitude: the sources establish feature availability, but not independent performance or reliability gains in production. Most important failure mode: over-reading a release announcement as proof of broad operational improvement.",
+      "verified_source_urls": [
+        "https://pytorch.org/blog/pytorch-2-14-release-blog/",
+        "https://github.com/pytorch/pytorch/releases/tag/v2.14.0"
+      ],
+      "verified_primary_source_urls": [
+        "https://pytorch.org/blog/pytorch-2-14-release-blog/"
+      ]
+    },
+    {
+      "candidate_id": "cand-002",
+      "factual_accuracy": 4,
+      "evidence_strength": 3,
+      "practical_value": 3,
+      "novelty": 2,
+      "transferability": 3,
+      "teachability": 3,
+      "confidence": 4,
+      "red_flags": [],
+      "counter_evidence": [
+        "Evidence is entirely AWS-authored architecture guidance; no external validation or reusable implementation artifact was verified.",
+        "The pattern mixes standard RAG, classification/prediction, and workflow automation ideas that are useful but not especially new.",
+        "Cloud-specific service choices may raise migration and setup costs for non-AWS teams."
+      ],
+      "rationale": "Verified that the AWS post was published on September 2, 2026, inside the evaluation window, and that it explicitly describes SOP generation from training videos, RAG-guided ticket resolution, and ML for workload optimization and SLA-risk prediction. The summary's human-in-the-loop framing is consistent with the post's positioning. What remains uncertain is operational effectiveness, cost, and portability because the accessible evidence is a vendor reference architecture rather than a measured deployment study. Most important failure mode: publishing it as a concrete best practice when the support is mainly prescriptive cloud-solution marketing.",
+      "verified_source_urls": [
+        "https://aws.amazon.com/blogs/machine-learning/modernizing-and-scaling-support-operations-with-generative-ai-on-aws/"
+      ],
+      "verified_primary_source_urls": [
+        "https://aws.amazon.com/blogs/machine-learning/modernizing-and-scaling-support-operations-with-generative-ai-on-aws/"
+      ]
+    },
+    {
+      "candidate_id": "cand-003",
+      "factual_accuracy": 3,
+      "evidence_strength": 2,
+      "practical_value": 3,
+      "novelty": 2,
+      "transferability": 3,
+      "teachability": 3,
+      "confidence": 3,
+      "red_flags": [],
+      "counter_evidence": [
+        "The cited source is a Google monthly roundup, not a dedicated technical write-up.",
+        "The key benchmark numbers are second-hand in the roundup; the deeper linked benchmark/blog page was not accessible from the tool session, so independent validation of the claimed percentages was not possible.",
+        "The general advice about evaluating prefix caching is sensible but older than this post and not unique to Google Cloud."
+      ],
+      "rationale": "Verified that the Google Cloud roundup was published within the window and that it explicitly claims GKE Inference Gateway outperforms another managed Kubernetes service on throughput, wait time, and inter-token latency, attributing this to prefix caching. I also verified that GKE Inference Gateway exists in Google Cloud documentation, but the documentation page I could access did not itself substantiate the benchmark or even mention prefix caching. What remains uncertain is whether the quoted benchmark is fairly framed, reproducible, and broadly transferable. Most important failure mode: the actionable claim leans on a vendor-summarized benchmark that could be cherry-picked.",
+      "verified_source_urls": [
+        "https://cloud.google.com/blog/topics/ai-infrastructure/whats-new-in-ai-infrastructure-this-month",
+        "https://docs.cloud.google.com/kubernetes-engine/docs/concepts/about-gke-inference-gateway"
+      ],
+      "verified_primary_source_urls": [
+        "https://cloud.google.com/blog/topics/ai-infrastructure/whats-new-in-ai-infrastructure-this-month"
+      ]
+    },
+    {
+      "candidate_id": "cand-004",
+      "factual_accuracy": 2,
+      "evidence_strength": 2,
+      "practical_value": 2,
+      "novelty": 2,
+      "transferability": 2,
+      "teachability": 2,
+      "confidence": 3,
+      "red_flags": [
+        "Primary source URL is wrong: the candidate lists a Hugging Face search page instead of the paper page or paper itself."
+      ],
+      "counter_evidence": [
+        "The accessible evidence confirms the paper exists and its abstract supports the code-as-action idea, but no fresh 2026 contribution was established; the paper is from February 2024.",
+        "No primary arXiv/PDF was reopened here, so implementation and evaluation nuances remain unverified.",
+        "The core advice to use a sandboxed interpreter is plausible but not new by 2026."
+      ],
+      "rationale": "Verified that the paper exists and that its abstract supports the central claim that executable Python code can provide a unified, more flexible action space for agents. However, the candidate's provided primary URL is not the paper but a generic Hugging Face search page, and the work is not within the stated August 27 to September 2, 2026 window. What remains uncertain is the strength of the empirical comparison against JSON/tool-call baselines because only the paper page summary was verified. Most important failure mode: out-of-window item with incorrect primary sourcing.",
+      "verified_source_urls": [
+        "https://huggingface.co/papers/2402.01030"
+      ],
+      "verified_primary_source_urls": []
+    },
+    {
+      "candidate_id": "cand-005",
+      "factual_accuracy": 4,
+      "evidence_strength": 3,
+      "practical_value": 3,
+      "novelty": 3,
+      "transferability": 3,
+      "teachability": 4,
+      "confidence": 4,
+      "red_flags": [
+        "Primary source URL is wrong: the candidate lists a Hugging Face search page instead of the paper page or paper itself."
+      ],
+      "counter_evidence": [
+        "Evidence available here is mainly the Hugging Face paper page summary plus author comments; I did not reopen the arXiv PDF or code repo.",
+        "Claims about superiority versus existing frameworks and the 7-benchmark evaluation were not independently checked from the primary paper.",
+        "Adoption cost could be substantial because this introduces a DSL, harness, and workflow authoring changes."
+      ],
+      "rationale": "Verified that AgentSPEX exists and that the accessible paper page supports the main descriptive claims: typed steps, branching/loops, parallel execution, reusable submodules, explicit state management, sandboxing, checkpointing, verification, logging, and a visual editor. These are concrete and more than mere branding. What remains uncertain is empirical advantage, ergonomics at scale, and whether the formal-verification and safety story is mature enough for production. Most important failure mode: the candidate supplied the wrong primary URL, so publication would need source correction before use.",
+      "verified_source_urls": [
+        "https://huggingface.co/papers/2604.13346"
+      ],
+      "verified_primary_source_urls": []
+    },
+    {
+      "candidate_id": "cand-006",
+      "factual_accuracy": 4,
+      "evidence_strength": 3,
+      "practical_value": 4,
+      "novelty": 3,
+      "transferability": 4,
+      "teachability": 4,
+      "confidence": 4,
+      "red_flags": [
+        "Primary source URL is wrong: the candidate lists a Hugging Face search page instead of the paper page or paper itself."
+      ],
+      "counter_evidence": [
+        "The verified evidence is still mostly the Hugging Face paper-page abstract, not a full inspection of pinned commits, PoCs, or methods.",
+        "The framework audit covers a limited set of ecosystems, so generalization to all agent frameworks is uncertain.",
+        "Security architecture guidance is strong, but deployment claims beyond the measured cases would be inference."
+      ],
+      "rationale": "Verified that the paper exists and that its abstract directly supports the central claim: common agent-framework defaults expose tools without deterministic per-call value authorization, and ScopeGate is proposed as a five-stage pattern covering scope, authorization, money ceiling, idempotency, and default deny. This is concrete and immediately applicable for side-effecting agents. What remains uncertain is the breadth of the audit and robustness of the experimental setup because I did not verify the underlying pinned commits or full paper. Most important failure mode: source hygiene is poor because the candidate did not cite the actual paper URL.",
+      "verified_source_urls": [
+        "https://huggingface.co/papers/2606.28679"
+      ],
+      "verified_primary_source_urls": []
+    },
+    {
+      "candidate_id": "cand-007",
+      "factual_accuracy": 3,
+      "evidence_strength": 2,
+      "practical_value": 3,
+      "novelty": 3,
+      "transferability": 3,
+      "teachability": 3,
+      "confidence": 3,
+      "red_flags": [
+        "Primary source URL is wrong: the candidate lists a Hugging Face search page instead of the paper page or paper itself.",
+        "Published date is outside the evaluation window: the accessible paper page shows June 3, 2025, not September 1, 2026."
+      ],
+      "counter_evidence": [
+        "Only the Hugging Face paper-page summary was verified; the benchmark details and mitigation evidence were not checked in the paper itself.",
+        "The contribution appears more diagnostic than prescriptive, which limits immediate engineering value."
+      ],
+      "rationale": "Verified that the paper exists and that its abstract supports the claims about deceptive judges, a judge-behavior framework, and WAFER-QA with evidence-grounded critiques. However, the candidate's date appears wrong relative to the accessible source, and the supplied primary URL is only a search page. What remains uncertain is benchmark realism and whether the findings generalize to practical review-agent pipelines. Most important failure mode: date/source mismatch makes this unfit for a time-bounded roundup without correction.",
+      "verified_source_urls": [
+        "https://huggingface.co/papers/2506.03332"
+      ],
+      "verified_primary_source_urls": []
+    },
+    {
+      "candidate_id": "cand-008",
+      "factual_accuracy": 2,
+      "evidence_strength": 1,
+      "practical_value": 2,
+      "novelty": 2,
+      "transferability": 2,
+      "teachability": 2,
+      "confidence": 2,
+      "red_flags": [
+        "No accessible primary source was verified. The candidate lists only a Hugging Face search page, and I could not verify the actual paper page or paper PDF from the provided sourcing."
+      ],
+      "counter_evidence": [
+        "A Hugging Face search result snippet is consistent with the summary, but snippets are weaker than a paper page or primary paper.",
+        "Hierarchical orchestration for long-horizon agents is directionally plausible but not clearly novel without the paper and evaluations."
+      ],
+      "rationale": "I found only a search-result snippet indicating that a paper titled 'Matryoshka Agent: Unfolding Sub-Agents for Long-Horizon Machine Learning Engineering' likely exists and roughly matches the claimed architecture. I could not reopen an actual paper page, arXiv page, PDF, or code artifact from the candidate's provided sources. What remains uncertain is nearly everything substantive: publication details, methods, benchmarks, and whether the claimed contribution is distinct from prior hierarchical-agent work. Most important failure mode: no accessible primary source from the supplied citation chain.",
+      "verified_source_urls": [
+        "https://huggingface.co/papers?q=sub-agents"
+      ],
+      "verified_primary_source_urls": []
+    },
+    {
+      "candidate_id": "cand-009",
+      "factual_accuracy": 2,
+      "evidence_strength": 2,
+      "practical_value": 2,
+      "novelty": 2,
+      "transferability": 2,
+      "teachability": 2,
+      "confidence": 3,
+      "red_flags": [
+        "Primary source URL is wrong: the candidate lists a Hugging Face search page instead of the paper page or paper itself.",
+        "Published date is outside the evaluation window: the accessible paper page shows October 17, 2024, not September 1, 2026."
+      ],
+      "counter_evidence": [
+        "The paper page supports the broad world-model claim, but the specific 'transition-focused observation abstraction' detail was not verified from a primary paper/PDF here.",
+        "Research-stage browser-agent methods often have high implementation cost and uncertain production transfer."
+      ],
+      "rationale": "Verified that the paper exists and that its abstract supports the broad idea of a world-model-augmented web agent simulating action outcomes for better decision-making. But the candidate appears to misdate it into the 2026 window, and the supplied source is again only a search page. What remains uncertain is the specific technical mechanism highlighted in the summary and the magnitude of practical benefit. Most important failure mode: time-window violation plus weak sourcing.",
+      "verified_source_urls": [
+        "https://huggingface.co/papers/2410.13232"
+      ],
+      "verified_primary_source_urls": []
+    },
+    {
+      "candidate_id": "cand-010",
+      "factual_accuracy": 2,
+      "evidence_strength": 2,
+      "practical_value": 2,
+      "novelty": 3,
+      "transferability": 2,
+      "teachability": 2,
+      "confidence": 3,
+      "red_flags": [
+        "Primary source URL is wrong: the candidate lists a Hugging Face search page instead of the paper page or paper itself.",
+        "Published date is outside the evaluation window: the accessible paper page shows September 8, 2025, not September 2, 2026."
+      ],
+      "counter_evidence": [
+        "The paper page confirms the broad paper-to-agent framing, but the specific MCP-server packaging and iterative test-hardening details were not verified from primary materials here.",
+        "Community comments indicate code availability changed after initial release, which adds uncertainty about reproducibility at publication time."
+      ],
+      "rationale": "Verified that Paper2Agent exists and that the paper page supports the core concept of converting research papers into interactive AI agents. I also verified that the candidate's claimed publication date does not match the accessible source. What remains uncertain is how robustly the system operationalizes papers across messy repos and whether the packaging pattern is mature enough to count as a practical trick rather than a research concept. Most important failure mode: out-of-window dating combined with weak primary sourcing.",
+      "verified_source_urls": [
+        "https://huggingface.co/papers/2509.06917"
+      ],
+      "verified_primary_source_urls": []
+    },
+    {
+      "candidate_id": "cand-011",
+      "factual_accuracy": 3,
+      "evidence_strength": 2,
+      "practical_value": 3,
+      "novelty": 3,
+      "transferability": 3,
+      "teachability": 3,
+      "confidence": 3,
+      "red_flags": [
+        "Primary source URL is wrong: the candidate lists a Hugging Face search page instead of the paper page or paper itself.",
+        "Published date is outside the evaluation window: the accessible paper page shows June 30, 2026, not September 2, 2026."
+      ],
+      "counter_evidence": [
+        "The evidence I verified is the paper-page abstract only; I did not inspect the arXiv paper, deployment artifacts, or review data.",
+        "Volunteer reviews over generated papers are informative but can still leave major quality and integrity questions unresolved.",
+        "The candidate's most actionable takeaway about artifact discipline is partly an inference from the described shared-workspace design."
+      ],
+      "rationale": "Verified that FARS exists and that the accessible paper page supports several central factual claims: a shared workspace preserving proposals, code, logs, results, and manuscripts; 166 complete papers across 67 topics; and 282 structured reviews over 140 papers. These make the candidate's artifact-discipline takeaway plausible. What remains uncertain is how strong the produced research actually is and whether the deployment-at-scale framing hides substantial integrity or curation issues. Most important failure mode: the candidate misstates the publication timing for a time-bounded evaluation and cites the wrong primary URL.",
+      "verified_source_urls": [
+        "https://huggingface.co/papers/2606.31651"
+      ],
+      "verified_primary_source_urls": []
+    }
+  ],
+  "approved": [
+    {
+      "candidate": {
+        "candidate_id": "cand-001",
+        "title": "PyTorch 2.14 Release Blog",
+        "category": "engineering_practice",
+        "published_at": "2026-09-02",
+        "summary": "PyTorch 2.14 ships several directly actionable production features: NVGEMM as a new GEMM backend in Inductor, a new in-tree `nccl2` distributed backend, first-class fault-tolerance concepts in c10d, declarative dynamic shapes via `@dynamic_spec`, broader accelerator support, and experimental complex-tensor support in `torch.compile`. For teams running large training or inference jobs, this is a concrete framework upgrade with performance, reliability, and portability implications.",
+        "novelty": "Notable because it bundles low-level compiler/kernel changes, distributed runtime changes, and shape-system improvements in one release rather than a marketing launch.",
+        "practitioner_value": "Engineers can reevaluate compiler baselines, retry previously fragile dynamic-shape workloads, and revisit distributed fault handling and Apple Silicon support with fewer custom patches.",
+        "concrete_takeaways": [
+          "Benchmark Inductor with NVGEMM on matrix-heavy workloads, especially if you use fused epilogues or low-precision paths.",
+          "Test the new `nccl2` backend and c10d fault-tolerance features for jobs where communicator failures or reconfiguration matter.",
+          "Prototype declarative dynamic shapes with `@dynamic_spec` so the same shape contract can travel across `torch.compile`, `torch.export`, and `make_fx`.",
+          "If you support Mac development or edge experimentation, retest native linear algebra on Apple Silicon."
+        ],
+        "limitations": [
+          "Release blog, not an independent benchmark study.",
+          "Some features are experimental or hardware-specific, so impact will vary by stack."
+        ],
+        "source_urls": [
+          "https://pytorch.org/blog/pytorch-2-14-release-blog/"
+        ],
+        "primary_source_urls": [
+          "https://pytorch.org/blog/pytorch-2-14-release-blog/"
+        ]
+      },
+      "evaluation": {
+        "candidate_id": "cand-001",
+        "factual_accuracy": 4,
+        "evidence_strength": 4,
+        "practical_value": 4,
+        "novelty": 3,
+        "transferability": 3,
+        "teachability": 4,
+        "confidence": 4,
+        "red_flags": [],
+        "counter_evidence": [
+          "Primary evidence is a vendor release blog plus its linked GitHub release notes, not independent benchmarking.",
+          "Several touted items are hardware- or stack-specific, so benefits will vary materially by workload and platform.",
+          "The claim that teams should 'benchmark' or 'retest' is an inference from the release contents rather than an empirical outcome study."
+        ],
+        "rationale": "Verified that the item was published within the window on September 2, 2026 and that the linked release notes repeat the central feature claims: NVGEMM in Inductor, a new nccl2 backend, first-class c10d fault-tolerance concepts, declarative dynamic shapes via @dynamic_spec, Apple Silicon linear algebra work, and experimental complex-tensor support in torch.compile. What remains uncertain is real-world magnitude: the sources establish feature availability, but not independent performance or reliability gains in production. Most important failure mode: over-reading a release announcement as proof of broad operational improvement.",
+        "verified_source_urls": [
+          "https://pytorch.org/blog/pytorch-2-14-release-blog/",
+          "https://github.com/pytorch/pytorch/releases/tag/v2.14.0"
+        ],
+        "verified_primary_source_urls": [
+          "https://pytorch.org/blog/pytorch-2-14-release-blog/"
+        ]
+      }
+    }
+  ],
+  "gate_results": [
+    {
+      "candidate_id": "cand-001",
+      "approved": true,
+      "rejection_reasons": []
+    },
+    {
+      "candidate_id": "cand-002",
+      "approved": false,
+      "rejection_reasons": [
+        "insufficient_verified_sources",
+        "weighted_score_below_threshold"
+      ]
+    },
+    {
+      "candidate_id": "cand-003",
+      "approved": false,
+      "rejection_reasons": [
+        "factual_accuracy_below_4",
+        "evidence_strength_below_3",
+        "weighted_score_below_threshold"
+      ]
+    },
+    {
+      "candidate_id": "cand-004",
+      "approved": false,
+      "rejection_reasons": [
+        "insufficient_verified_sources",
+        "candidate_primary_source_not_reverified",
+        "factual_accuracy_below_4",
+        "evidence_strength_below_3",
+        "unresolved_red_flags",
+        "weighted_score_below_threshold"
+      ]
+    },
+    {
+      "candidate_id": "cand-005",
+      "approved": false,
+      "rejection_reasons": [
+        "insufficient_verified_sources",
+        "candidate_primary_source_not_reverified",
+        "unresolved_red_flags",
+        "weighted_score_below_threshold"
+      ]
+    },
+    {
+      "candidate_id": "cand-006",
+      "approved": false,
+      "rejection_reasons": [
+        "insufficient_verified_sources",
+        "candidate_primary_source_not_reverified",
+        "unresolved_red_flags"
+      ]
+    },
+    {
+      "candidate_id": "cand-007",
+      "approved": false,
+      "rejection_reasons": [
+        "insufficient_verified_sources",
+        "candidate_primary_source_not_reverified",
+        "factual_accuracy_below_4",
+        "evidence_strength_below_3",
+        "unresolved_red_flags",
+        "weighted_score_below_threshold"
+      ]
+    },
+    {
+      "candidate_id": "cand-008",
+      "approved": false,
+      "rejection_reasons": [
+        "insufficient_verified_sources",
+        "candidate_primary_source_not_reverified",
+        "factual_accuracy_below_4",
+        "evidence_strength_below_3",
+        "unresolved_red_flags",
+        "weighted_score_below_threshold"
+      ]
+    },
+    {
+      "candidate_id": "cand-009",
+      "approved": false,
+      "rejection_reasons": [
+        "insufficient_verified_sources",
+        "candidate_primary_source_not_reverified",
+        "factual_accuracy_below_4",
+        "evidence_strength_below_3",
+        "unresolved_red_flags",
+        "weighted_score_below_threshold"
+      ]
+    },
+    {
+      "candidate_id": "cand-010",
+      "approved": false,
+      "rejection_reasons": [
+        "insufficient_verified_sources",
+        "candidate_primary_source_not_reverified",
+        "factual_accuracy_below_4",
+        "evidence_strength_below_3",
+        "unresolved_red_flags",
+        "weighted_score_below_threshold"
+      ]
+    },
+    {
+      "candidate_id": "cand-011",
+      "approved": false,
+      "rejection_reasons": [
+        "insufficient_verified_sources",
+        "candidate_primary_source_not_reverified",
+        "factual_accuracy_below_4",
+        "evidence_strength_below_3",
+        "unresolved_red_flags",
+        "weighted_score_below_threshold"
+      ]
+    }
+  ],
+  "candidate_count": 11,
+  "evaluation_count": 11,
+  "configuration": {
+    "max_topics": 3,
+    "minimum_score": 70.0,
+    "minimum_verified_sources": 2,
+    "discovery_model": "gpt-5.4",
+    "evaluation_model": "gpt-5.4",
+    "editor_model": "gpt-5.4"
+  }
+}
