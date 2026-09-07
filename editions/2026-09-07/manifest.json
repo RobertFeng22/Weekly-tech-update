@@ -1,0 +1,754 @@
+{
+  "edition": {
+    "window_start": "2026-08-31",
+    "window_end": "2026-09-06",
+    "editorial_note": "本期只选 2 个题目，刻意覆盖两个不同层面：一个是 AI 平台治理与模型路由策略，一个是训练/推理基础设施升级。两者都不是“新模型发布”新闻，而是更接近工程团队本周可以真正试、真正落地的变化。需要强调：以下内容严格基于候选材料与评估结论，不扩展到未验证的产品细节、性能数字或管理流程。",
+    "topics": [
+      {
+        "candidate_id": "cand_07",
+        "title": "GitHub Copilot 企业级默认模型选择与团队路由",
+        "category": "engineering_practice",
+        "one_sentence_value": "把“开发者各自选模型”的个人偏好，升级为“平台团队按团队统一设默认模型”的企业治理能力，可用于平衡 cost、latency 与 compliance。",
+        "why_now": "该能力在 2026-09-02 的 GitHub changelog 中被明确发布，并且覆盖 Copilot app、Copilot CLI、VS Code，说明它已从零散客户端偏好设置走向可集中管理的默认策略。",
+        "lesson": "核心机制不是更强的模型，而是“default model routing policy”。平台团队先定义团队与默认模型的映射，再把该映射作为 enterprise-managed settings 下发。这样，新会话会先落到组织指定的默认模型，而不是由每个开发者临时决定。它的系统价值在于：同一个组织里，不同团队可以按 workflow 和 risk profile 走不同默认模型，例如高价值/高复杂度任务给更强模型，日常重复性工作给更快或更便宜的模型。评估里也明确提醒，真正收益来自你是否已经有清晰的内部模型选择政策；如果没有，集中配置只会把混乱放大。",
+        "hands_on_demo": [
+          "准备一个最小策略表，用文本或 YAML 表示团队到默认模型的映射，例如：`platform-team -> model_A`，`app-team -> model_B`。",
+          "选 2 类典型任务做纸面演练：例如 code review/架构讨论 归为高价值任务，样板代码补全/命令行帮助 归为日常任务。",
+          "为每类任务写出选择默认模型的依据，只允许使用候选中已验证的维度：`latency`、`cost`、`compliance`、团队 workflow/risk profile。",
+          "把该策略纳入版本控制，连同团队映射一起提交一次变更记录，模拟平台治理流程。",
+          "最后检查一个失败场景：如果团队无法说明为什么某工作流需要某默认模型，说明组织尚未形成可执行的 model-governance objective，不应仓促推广。"
+        ],
+        "when_to_use": [
+          "你在 Copilot Business 或 Enterprise 环境中。",
+          "你希望减少开发者随意选模型带来的成本漂移或合规不一致。",
+          "你已经能按团队或工作流区分对质量、速度、成本的偏好。",
+          "你有平台团队负责统一管理 AI tooling 设置。"
+        ],
+        "when_not_to_use": [
+          "你不是 Copilot Business/Enterprise 用户。",
+          "团队规模很小，且所有人工作流几乎一致，集中管理收益有限。",
+          "组织还没有任何模型选择原则，无法说明不同团队为何该用不同默认模型。"
+        ],
+        "caveats": [
+          "证据主要来自 GitHub changelog；未展开核查更细的管理控制台流程复杂度。",
+          "候选与评估只确认“可设默认模型并按 enterprise team 定制”，不应外推为更细粒度、自动化、按请求动态切换的路由系统。",
+          "价值强依赖组织内部是否已定义清楚 cost/latency/quality/compliance 取舍。"
+        ],
+        "source_urls": [
+          "https://github.blog/changelog/2026-09-02-enterprise-managed-settings-support-any-default-model/",
+          "https://github.blog/changelog/2026-07-27-enterprise-managed-settings-now-apply-to-the-github-copilot-app/"
+        ],
+        "video_direction": "视频必须清楚展示的机制：enterprise-managed settings 如何把默认模型选择从个人偏好变成团队级策略。必须展示的 demo：用一个最小团队映射表，演示 platform team 与 app team 拿到不同默认模型，并解释依据只限 latency、cost、compliance、workflow/risk profile。必须保留的限制：仅适用于 Copilot Business/Enterprise；收益依赖组织已有明确模型治理政策。证据边界必须可见：来源是 GitHub changelog，不能拍成“GitHub 已支持任意复杂动态模型路由”或“必然提升质量/成本”的结论。"
+      },
+      {
+        "candidate_id": "cand_01",
+        "title": "PyTorch 2.14：编译器、分布式与动态形状的生产向升级",
+        "category": "engineering_practice",
+        "one_sentence_value": "PyTorch 2.14 值得工程团队优先测试，因为它同时动到了 `torch.compile`、distributed backend、fault tolerance、dynamic shapes 和 Apple Silicon/MPS 这些会直接影响生产训练/推理路径的基础层。",
+        "why_now": "这是 2026-09-02 发布的正式版本；候选与评估都指出，它的重要性不在于增加冷门 API，而在于多项编译器/runtime/default behavior 的变化可能马上影响现有 workload。",
+        "lesson": "本次版本的可学之处在于“升级不是只看新接口，而是看执行路径被怎样改写”。候选中列出的几个点可按机制理解：第一，Inductor 引入 NVGEMM backend，并提到 communication/compute overlap 默认开启，意味着 `torch.compile` 后的执行与调度路径可能变化；第二，新的 in-tree `nccl2` backend 和 c10d fault-tolerance 概念，说明分布式训练在通信与故障恢复层面有新测试点；第三，`@dynamic_spec` 把 dynamic shapes 的声明更统一地连接到 compile/export/tracing；第四，Apple Silicon/MPS 改进意味着本地开发与原型环境不该再沿用旧结论。工程上的正确姿势不是“升级后必快”，而是针对自己的 workload 逐项做回归 benchmark 与稳定性验证。",
+        "hands_on_demo": [
+          "选一个你现有的小型 PyTorch 脚本，建立升级前后的基线记录：运行时间、是否使用 `torch.compile`、输入 shape 是否固定。",
+          "升级到 2.14 后，只做一件事：对同一脚本重新运行 `torch.compile` 路径，比较是否能正常工作，并记录任何性能或图捕获行为变化。",
+          "如果你的模型包含多种输入长度或尺寸，给出两组不同 shape 的输入，检查你是否需要用 `@dynamic_spec` 思路统一声明 dynamic shapes。",
+          "如果你有分布式训练环境，把验证目标限定为“确认 `nccl2` 与 c10d fault-tolerance 是本次值得评估的方向”，而不是直接假设可无缝替换线上配置。",
+          "如果团队里有人用 Apple Silicon 开发，安排一次本地 MPS 回归测试，重新确认旧的性能印象是否仍然成立。"
+        ],
+        "when_to_use": [
+          "你维护训练或推理系统，且使用 `torch.compile`、distributed training 或 dynamic-shape-heavy pipeline。",
+          "你需要评估长跑分布式作业的可靠性改进方向。",
+          "你的团队有 Apple Silicon 开发机，本地原型性能会影响迭代效率。",
+          "你愿意做 workload-specific benchmark，而不是仅凭 release blog 决策。"
+        ],
+        "when_not_to_use": [
+          "你的环境短期无法升级底层框架，回归成本高于潜在收益。",
+          "你期望 release blog 中的改进自动转化为线上确定性收益。",
+          "你依赖的关键路径对新版本稳定性极其敏感，且当前没有测试窗口。"
+        ],
+        "caveats": [
+          "证据主要来自 PyTorch release blog 与 GA announcement，未独立核验各子特性的 benchmark 或成熟度。",
+          "评估明确指出某些特性仍在演进，收益会随 workload 与硬件而显著变化。",
+          "不能把候选中的方向性表述，扩展成对所有模型、所有集群、所有设备都成立的性能结论。"
+        ],
+        "source_urls": [
+          "https://pytorch.org/blog/pytorch-2-14-release-blog/",
+          "https://dev-discuss.pytorch.org/t/pytorch-2-14-0-general-availability/3431"
+        ],
+        "video_direction": "视频必须清楚展示的机制：PyTorch 2.14 不是单一新 API，而是 compiler/runtime/distributed/dynamic shapes/device runtime 多层一起变化。必须展示的 demo：一个最小 PyTorch 脚本在升级前后跑 `torch.compile`，再用两组不同输入 shape 说明为什么要重新检查 dynamic-shape 行为；若提到 distributed 或 MPS，只能作为“值得评估的检查点”。必须保留的限制：不能宣称通用提速或通用稳定性提升，某些特性成熟度不一。证据边界必须可见：依据是 release blog 与 GA announcement，而不是独立大规模基准测试。"
+      }
+    ]
+  },
+  "candidates": [
+    {
+      "candidate_id": "cand_01",
+      "title": "PyTorch 2.14 release",
+      "category": "engineering_practice",
+      "published_at": "2026-09-02",
+      "summary": "PyTorch 2.14 ships several production-relevant systems changes: a new NVGEMM backend in Inductor, an in-tree nccl2 distributed backend, first-class fault-tolerance concepts in c10d, declarative dynamic shapes, and major Apple Silicon/MPS improvements. The release is unusually actionable for teams running training or inference at scale because it changes default compiler/runtime behavior rather than just adding niche APIs.",
+      "novelty": "Compiler, distributed, and device-runtime changes landed together in one release, including communication/compute overlap enabled by default and broader fault-tolerance support.",
+      "practitioner_value": "Engineers can test immediate speedups and reliability gains by upgrading, especially on distributed jobs, Apple Silicon development environments, and dynamic-shape-heavy inference/export pipelines.",
+      "concrete_takeaways": [
+        "Benchmark `torch.compile` workloads after upgrading because Inductor now enables communication/compute overlap by default.",
+        "Evaluate the new `nccl2` backend and c10d fault-tolerance features for long-running distributed jobs with node failure risk.",
+        "Use `@dynamic_spec` to unify dynamic-shape declarations across compile, export, and tracing flows.",
+        "If you support Mac developers or edge prototyping on Apple Silicon, retest MPS performance; native linear algebra and Metal-kernel migrations reduce overhead.",
+        "Try new control-flow primitives like `torch.switch` and improved `torch.while_loop` capture for dynamic models."
+      ],
+      "limitations": [
+        "Release blog summarizes many changes; per-feature maturity varies and some APIs are marked unstable.",
+        "Migration benefit depends on your hardware mix and current compiler settings."
+      ],
+      "source_urls": [
+        "https://pytorch.org/blog/pytorch-2-14-release-blog/"
+      ],
+      "primary_source_urls": [
+        "https://pytorch.org/blog/pytorch-2-14-release-blog/"
+      ]
+    },
+    {
+      "candidate_id": "cand_02",
+      "title": "Hugging Face launches @huggingface/kernels with 207 WebGPU kernels",
+      "category": "practical_trick",
+      "published_at": "2026-09-01",
+      "summary": "Hugging Face published a WebGPU kernel collection plus a JavaScript loader that fetches, validates, and runs kernels directly from the Hub. The important bit is not just the kernel count: each kernel includes manifests, correctness tests, benchmarks, and WGSL templates, making browser-local AI performance work more reproducible.",
+      "novelty": "Turns WebGPU kernel experimentation into a package-plus-artifact workflow, with per-kernel repos and shared benchmarking infrastructure rather than ad hoc shader snippets.",
+      "practitioner_value": "Frontend and edge-AI engineers can now prototype local inference/browser acceleration with reusable kernels and a standard loading path instead of building bespoke WGSL plumbing from scratch.",
+      "concrete_takeaways": [
+        "Install `@huggingface/kernels@preview` to load WebGPU kernels from the Hub in JS apps.",
+        "Use the published correctness tests and benchmark cases as a template for your own browser-side kernel validation.",
+        "Test across heterogeneous hardware using the linked fleet benchmarking setup instead of trusting one-machine results.",
+        "Treat kernels as versioned artifacts with manifests rather than embedding opaque shader code directly in app repos."
+      ],
+      "limitations": [
+        "Requires browser WebGPU support, which still varies by browser, OS, GPU, and driver.",
+        "This is infrastructure for local AI kernels, not a complete end-to-end model runtime by itself."
+      ],
+      "source_urls": [
+        "https://huggingface.co/blog/webgpu-kernels"
+      ],
+      "primary_source_urls": [
+        "https://huggingface.co/blog/webgpu-kernels"
+      ]
+    },
+    {
+      "candidate_id": "cand_03",
+      "title": "GRPO recipe for better structured outputs in ~100 steps on a 350M model",
+      "category": "practical_trick",
+      "published_at": "2026-09-03",
+      "summary": "A Hugging Face tutorial shows a small, concrete post-training recipe: use TRL/GRPO to improve structured-output reliability on a 350M model in roughly 100 steps, then evaluate with IFStruct. The value is the low-cost, reproducible path to format adherence rather than a frontier-model claim.",
+      "novelty": "Shows that reinforcement-style post-training for structured outputs can be made very small-scale and operational, with an end-to-end evaluation/serving recipe.",
+      "practitioner_value": "Teams struggling with JSON/schema fidelity can try a lightweight GRPO fine-tune before reaching for much larger models or complex constrained decoding stacks.",
+      "concrete_takeaways": [
+        "Prototype a small GRPO fine-tune for structured outputs before scaling model size.",
+        "Reuse IFStruct-style evaluation to measure format compliance explicitly rather than relying on anecdotal prompt tests.",
+        "Serve the merged model locally and compare pre/post fine-tune structured-output behavior on your schemas.",
+        "Apply the recipe to domain-specific extraction or tool-call formatting tasks where correctness matters more than open-ended generation."
+      ],
+      "limitations": [
+        "This is a tutorial/example workflow, not a universal result across all model families or schemas.",
+        "Operational gains depend on availability of a good reward/evaluation signal for your target format."
+      ],
+      "source_urls": [
+        "https://huggingface.co/blog/grpo-with-trl-ifstruct"
+      ],
+      "primary_source_urls": [
+        "https://huggingface.co/blog/grpo-with-trl-ifstruct"
+      ]
+    },
+    {
+      "candidate_id": "cand_04",
+      "title": "Funes: dataset-backed memory for coding agents",
+      "category": "engineering_practice",
+      "published_at": "2026-09-03",
+      "summary": "Hugging Face introduced Funes, a memory approach for coding agents where memory is stored as datasets rather than as a separate hosted memory service. The core engineering idea is ownership and portability: local/remote memories are versioned, access-controlled, cached locally, and not bound to one agent vendor.",
+      "novelty": "Frames agent memory as append-only datasets with versioning and portability, avoiding service lock-in and enabling agent switching without losing history.",
+      "practitioner_value": "Agent builders can externalize long-session memory into a format they own, making cross-agent workflows, auditing, and cost control easier.",
+      "concrete_takeaways": [
+        "Store agent memory in versioned datasets instead of proprietary hosted memory backends where possible.",
+        "Use local caching of remote memories to keep warm-query latency down.",
+        "Separate `ask`/human querying from agent `recall` flows to debug memory quality directly.",
+        "Preserve portability so you can swap coding agents without resetting project context."
+      ],
+      "limitations": [
+        "This is an architectural pattern and tool, not proof that dataset-backed memory is best for every latency/security regime.",
+        "Memory usefulness still depends on capture quality, retrieval policy, and summarization discipline."
+      ],
+      "source_urls": [
+        "https://huggingface.co/blog/funes"
+      ],
+      "primary_source_urls": [
+        "https://huggingface.co/blog/funes"
+      ]
+    },
+    {
+      "candidate_id": "cand_05",
+      "title": "Replay-based evaluation under production parity for model swaps",
+      "category": "engineering_practice",
+      "published_at": "2026-09-01",
+      "summary": "A Hugging Face community article describes a replay pipeline for evaluating candidate LLM replacements against realistic production conversations, including dynamic skill redirection and action surfaces. The mechanism matters: it argues for offline replay that preserves orchestration behavior instead of simple prompt-set bakeoffs.",
+      "novelty": "Pushes evaluation from static prompt benchmarks toward orchestration-faithful replays that mimic production routing and tool/action behavior.",
+      "practitioner_value": "Useful for teams planning model swaps in assistants or support agents where regressions often come from orchestration mismatch, not raw model quality.",
+      "concrete_takeaways": [
+        "Build replay-based regression suites from real production traces before changing your serving model.",
+        "Preserve dynamic action/skill routing in evaluation, not just plain text prompts.",
+        "Use production-parity offline tests to narrow candidates before expensive shadow or canary deployments.",
+        "Measure failures at the workflow level: tool choice, handoff behavior, and conversation-state transitions."
+      ],
+      "limitations": [
+        "Community article rather than platform vendor documentation.",
+        "Replay quality depends on how faithfully your captured traces reconstruct live system behavior."
+      ],
+      "source_urls": [
+        "https://huggingface.co/blog/TechforHumans/evaluating-llms-under-production-parity"
+      ],
+      "primary_source_urls": [
+        "https://huggingface.co/blog/TechforHumans/evaluating-llms-under-production-parity"
+      ]
+    },
+    {
+      "candidate_id": "cand_06",
+      "title": "GitHub Copilot content exclusions reach general availability in app and CLI",
+      "category": "engineering_practice",
+      "published_at": "2026-09-02",
+      "summary": "GitHub made content exclusions generally available in Copilot app and Copilot CLI, so enterprise/org/repo exclusion policies now prevent excluded files from being used as model context in agentic workflows. This is operationally important for teams trying to expand coding-agent usage without leaking sensitive code into prompts.",
+      "novelty": "Extends exclusion policy enforcement into app/CLI agent workflows, not just isolated IDE interactions.",
+      "practitioner_value": "Security and platform teams can now roll out coding agents more broadly while keeping sensitive files, directories, or repositories out of contextualization paths.",
+      "concrete_takeaways": [
+        "Define repository or org-level exclusion policies before enabling broader Copilot app/CLI use.",
+        "Audit which files should never become LLM context, especially secrets, regulated code, and security-sensitive infra.",
+        "Treat context governance as a first-class control plane for agentic coding tools."
+      ],
+      "limitations": [
+        "Applies to Copilot Business and Enterprise customers.",
+        "This reduces one class of exposure risk; it does not replace broader prompt/data governance."
+      ],
+      "source_urls": [
+        "https://github.blog/changelog/2026-09-02-content-exclusions-generally-available-in-copilot-app-and-cli/"
+      ],
+      "primary_source_urls": [
+        "https://github.blog/changelog/2026-09-02-content-exclusions-generally-available-in-copilot-app-and-cli/"
+      ]
+    },
+    {
+      "candidate_id": "cand_07",
+      "title": "GitHub Copilot enterprise-managed default model selection",
+      "category": "engineering_practice",
+      "published_at": "2026-09-02",
+      "summary": "GitHub added enterprise-managed settings for default model selection across Copilot app, CLI, and VS Code, including team-based defaults. That sounds administrative, but it has real systems value: organizations can route different teams to different model defaults by workflow and risk profile.",
+      "novelty": "Makes model-routing policy a centrally managed enterprise setting instead of an individual preference.",
+      "practitioner_value": "Platform teams can standardize default models for latency, cost, or compliance reasons, while still allowing differentiated defaults by team.",
+      "concrete_takeaways": [
+        "Set default models centrally per team rather than letting every developer choose ad hoc.",
+        "Use team-specific defaults to align stronger models with high-value workflows and cheaper/faster models with routine tasks.",
+        "Version-control managed settings and team mappings as part of AI platform governance."
+      ],
+      "limitations": [
+        "Available in Copilot Business and Enterprise contexts.",
+        "Benefit depends on having clear internal policy for model choice by workflow."
+      ],
+      "source_urls": [
+        "https://github.blog/changelog/2026-09-02-enterprise-managed-settings-support-any-default-model/"
+      ],
+      "primary_source_urls": [
+        "https://github.blog/changelog/2026-09-02-enterprise-managed-settings-support-any-default-model/"
+      ]
+    },
+    {
+      "candidate_id": "cand_08",
+      "title": "CodeQL 2.26.4 improves GitHub Actions security detections",
+      "category": "engineering_practice",
+      "published_at": "2026-09-03",
+      "summary": "CodeQL 2.26.4 adds support for Go 1.27, improves Rust alert locations, and includes accuracy improvements across C#, Java/Kotlin, and GitHub Actions. For AI engineering teams increasingly generating workflow YAML and automation scaffolding with copilots/agents, stronger Actions detections are especially relevant.",
+      "novelty": "Incremental release, but with practical detection-quality changes in the CI/CD layer where AI-generated infrastructure code often lands.",
+      "practitioner_value": "Security engineers can tighten scanning around AI-assisted repo automation and generated workflow changes, especially in GitHub Actions-heavy environments.",
+      "concrete_takeaways": [
+        "Upgrade CodeQL baselines if you rely on GitHub code scanning for repos with AI-generated workflow code.",
+        "Recheck GitHub Actions findings after upgrade; query accuracy changed.",
+        "Use the release as a prompt to include generated CI/CD artifacts in AI-assisted code review policies."
+      ],
+      "limitations": [
+        "This is an improvement release, not a new framework.",
+        "Impact depends on your language mix and use of GitHub Actions."
+      ],
+      "source_urls": [
+        "https://github.blog/changelog/2026-09-03-codeql-2-26-4-improves-github-actions-security-detections/"
+      ],
+      "primary_source_urls": [
+        "https://github.blog/changelog/2026-09-03-codeql-2-26-4-improves-github-actions-security-detections/"
+      ]
+    },
+    {
+      "candidate_id": "cand_09",
+      "title": "TimesFM-3: zero-shot multivariate forecasting in a single forward pass",
+      "category": "valuable_paper",
+      "published_at": "2026-08-31",
+      "summary": "Google Research introduced TimesFM-3, a 330M-parameter forecasting foundation model pretrained on more than 1 trillion time points. The most practically interesting aspect is its non-autoregressive single-pass multivariate decode with alternating temporal and variate attention, enabling use of multiple targets plus past and future covariates without task-specific fine-tuning.",
+      "novelty": "Moves TimesFM from univariate to native multivariate forecasting and replaces iterative patch decoding with single-pass horizon prediction.",
+      "practitioner_value": "Engineers working on forecasting for demand, observability, or operations can test zero-shot multivariate forecasting with known-future covariates like holidays, promotions, or planned events.",
+      "concrete_takeaways": [
+        "If your current forecasters ignore related series or known-future signals, test a multivariate foundation model instead of separate univariate models.",
+        "Exploit known future covariates explicitly; TimesFM-3 is designed to use them during single-pass forecasting.",
+        "Evaluate whether non-autoregressive horizon generation reduces latency enough for interactive or large-batch planning workflows.",
+        "Consider foundation-model forecasting for observability and operations cases where per-series fine-tuning is too costly."
+      ],
+      "limitations": [
+        "Published as a research blog with linked code/model assets rather than a full operational case study.",
+        "It targets forecasting rather than general LLM application development, so relevance is domain-specific."
+      ],
+      "source_urls": [
+        "https://research.google/blog/timesfm-3-a-zero-shot-foundation-model-for-multivariate-forecasting/"
+      ],
+      "primary_source_urls": [
+        "https://research.google/blog/timesfm-3-a-zero-shot-foundation-model-for-multivariate-forecasting/"
+      ]
+    },
+    {
+      "candidate_id": "cand_10",
+      "title": "Anthropic: Developing Enterprise Frontier Safeguards with customers",
+      "category": "engineering_practice",
+      "published_at": "2026-09-01",
+      "summary": "Anthropic published a customer-facing safeguards piece inside the window that emphasizes enterprise controls around frontier model deployment. While less code-level than the other items, it is relevant as a production practice signal: vendor-side model adoption is increasingly bundled with explicit governance and staged deployment controls.",
+      "novelty": "Represents the continuing shift from raw model capability launches toward operational safeguards as a productized deployment layer.",
+      "practitioner_value": "Useful for platform teams formalizing rollout controls, approval paths, and deployment segmentation for powerful coding/research assistants.",
+      "concrete_takeaways": [
+        "Bake safeguards and deployment policy into procurement and platform rollout plans, not as an afterthought.",
+        "Segment access to frontier models by role and use case.",
+        "Ask vendors for concrete admin controls, auditability, and containment mechanisms before expanding usage."
+      ],
+      "limitations": [
+        "Less technically concrete than the strongest items in this batch.",
+        "Value is mainly governance/process-oriented rather than a reproducible engineering mechanism."
+      ],
+      "source_urls": [
+        "https://www.anthropic.com/news"
+      ],
+      "primary_source_urls": [
+        "https://www.anthropic.com/news"
+      ]
+    }
+  ],
+  "evaluations": [
+    {
+      "candidate_id": "cand_01",
+      "factual_accuracy": 4,
+      "evidence_strength": 3,
+      "practical_value": 4,
+      "novelty": 4,
+      "transferability": 4,
+      "teachability": 3,
+      "confidence": 4,
+      "red_flags": [],
+      "counter_evidence": [
+        "Evidence is primarily the PyTorch release blog and release-announcement post; I did not verify independent benchmarks or detailed release notes/PRs for each subsystem claim.",
+        "Some highlighted features are explicitly new or evolving, so maturity and upgrade benefit will vary by workload and hardware."
+      ],
+      "rationale": "Verified within the evaluation window: the PyTorch 2.14 release blog was published on September 2, 2026, and it explicitly lists NVGEMM in Inductor, a new in-tree `nccl2` distributed backend, fault tolerance as a first-class c10d concept, declarative dynamic shapes, and Apple Silicon native linear algebra/MPS work. A PyTorch developer mailing-list GA announcement also corroborates that 2.14.0 was generally available that day. The candidate’s core summary is therefore directionally accurate and timely. What remains uncertain is the strength of the claimed real-world speedups/reliability gains, because I did not verify per-feature benchmarks, defaults, or stability from lower-level release notes or code changes. Most important failure mode: readers may overgeneralize vendor release highlights into guaranteed production wins without workload-specific validation.",
+      "verified_source_urls": [
+        "https://pytorch.org/blog/pytorch-2-14-release-blog/",
+        "https://dev-discuss.pytorch.org/t/pytorch-2-14-0-general-availability/3431"
+      ],
+      "verified_primary_source_urls": [
+        "https://pytorch.org/blog/pytorch-2-14-release-blog/"
+      ]
+    },
+    {
+      "candidate_id": "cand_02",
+      "factual_accuracy": 4,
+      "evidence_strength": 3,
+      "practical_value": 3,
+      "novelty": 4,
+      "transferability": 3,
+      "teachability": 4,
+      "confidence": 4,
+      "red_flags": [],
+      "counter_evidence": [
+        "Primary evidence is a Hugging Face product blog; I did not verify independent third-party performance or adoption evidence.",
+        "Browser WebGPU support and performance portability remain materially dependent on browser, OS, GPU, and driver, limiting immediate universality.",
+        "The claim about reproducibility is supported by the described packaging/tests/benchmarks structure, but not by external replication evidence."
+      ],
+      "rationale": "Verified within window: Hugging Face published the post on September 1, 2026 and described `@huggingface/kernels` as a minimal library for loading and running WebGPU kernels from the Hub, alongside an initial collection of 207 kernels. The post also states the collection includes a repository-oriented workflow with manifests, tests, benchmarks, and fleet/device benchmarking framing, which supports the candidate’s claim that this is more than ad hoc shader snippets. Novelty is solid because the artifact-plus-loader workflow is more operational than one-off examples. Uncertain: whether this meaningfully improves real browser-local AI performance across diverse devices in practice, since the available evidence is vendor-authored and I did not verify independent benchmark results. Most important failure mode: teams may mistake a kernel collection for a complete production runtime strategy.",
+      "verified_source_urls": [
+        "https://huggingface.co/blog/webgpu-kernels"
+      ],
+      "verified_primary_source_urls": [
+        "https://huggingface.co/blog/webgpu-kernels"
+      ]
+    },
+    {
+      "candidate_id": "cand_03",
+      "factual_accuracy": 4,
+      "evidence_strength": 3,
+      "practical_value": 4,
+      "novelty": 3,
+      "transferability": 3,
+      "teachability": 4,
+      "confidence": 4,
+      "red_flags": [],
+      "counter_evidence": [
+        "This is a tutorial/example from Hugging Face plus collaborators, not an independent paper establishing broad generalization across models and schemas.",
+        "The low-cost recipe was verified at the level of the blog description, but I did not independently reproduce the training/evaluation or inspect all linked assets.",
+        "Structured-output gains may depend heavily on the chosen reward/evaluation setup and target schema."
+      ],
+      "rationale": "Verified within window: the Hugging Face article was published on September 3, 2026 and states that it fine-tunes LFM2.5-350M with GRPO using TRL, in roughly 100 steps, and evaluates on the IFStruct benchmark. That supports the candidate’s central factual claim that there is a small-scale, end-to-end recipe focused on structured-output compliance rather than frontier capability. Practical value is reasonably high because the setup appears comparatively cheap and concrete. Novelty is moderate rather than exceptional because the underlying idea—post-training for format adherence—is not entirely new, even if the small-scale recipe is useful. Most important failure mode: readers may infer that a short GRPO run is a general substitute for larger models or constrained decoding, which the evidence does not establish.",
+      "verified_source_urls": [
+        "https://huggingface.co/blog/grpo-with-trl-ifstruct"
+      ],
+      "verified_primary_source_urls": [
+        "https://huggingface.co/blog/grpo-with-trl-ifstruct"
+      ]
+    },
+    {
+      "candidate_id": "cand_04",
+      "factual_accuracy": 4,
+      "evidence_strength": 2,
+      "practical_value": 3,
+      "novelty": 3,
+      "transferability": 3,
+      "teachability": 4,
+      "confidence": 3,
+      "red_flags": [],
+      "counter_evidence": [
+        "Evidence is a single Hugging Face blog post introducing an architectural pattern/tool; I did not verify independent usage, benchmarks, or security/latency tradeoff studies.",
+        "The candidate’s portability/ownership claims are consistent with the design description, but not with comparative evidence that dataset-backed memory is superior to service-backed memory.",
+        "Operational quality still depends on capture, retrieval, summarization, and access-control implementation details not validated here."
+      ],
+      "rationale": "Verified within window: the September 3, 2026 Hugging Face post presents Funes as memory for coding agents where memory is treated as a dataset rather than a service, emphasizing ownership, portability, local caching, and switching agents without losing history. That supports the candidate’s factual framing. Practical value is plausible for teams worried about lock-in and auditability, but evidence strength is limited because the source is an introduction, not a rigorous evaluation against alternative memory architectures. Novelty is moderate: packaging memory as versioned datasets is a recognizable but not obviously transformative pattern. Most important failure mode: the architecture may sound cleaner than it performs once latency, retrieval relevance, and security constraints meet real workloads.",
+      "verified_source_urls": [
+        "https://huggingface.co/blog/funes"
+      ],
+      "verified_primary_source_urls": [
+        "https://huggingface.co/blog/funes"
+      ]
+    },
+    {
+      "candidate_id": "cand_05",
+      "factual_accuracy": 3,
+      "evidence_strength": 2,
+      "practical_value": 3,
+      "novelty": 2,
+      "transferability": 3,
+      "teachability": 3,
+      "confidence": 3,
+      "red_flags": [],
+      "counter_evidence": [
+        "The source is a Hugging Face community article by a third party, not platform documentation or a peer-reviewed study.",
+        "Replay-based evaluation under production-like conditions is sensible but not new; the candidate overstates novelty somewhat.",
+        "I verified the article’s existence and high-level replay-pipeline framing, but not the claimed effectiveness of dynamic skill redirection/action-surface preservation in real deployments."
+      ],
+      "rationale": "Verified within window: a Hugging Face community article published around September 1, 2026 argues for a replay engine that re-executes curated interactions under operational parity with production to isolate model-swap effects. That supports the candidate’s broad summary that the mechanism emphasizes orchestration-faithful offline replay rather than prompt-only bakeoffs. However, the novelty is limited because replay/regression evaluation for production systems is established practice, even if the conversational-agent packaging is useful. Evidence remains thin because I found no stronger primary technical artifact or independent validation behind the article. Most important failure mode: presenting a familiar evaluation best practice as a notably new insight without enough evidence of distinct implementation advantage.",
+      "verified_source_urls": [
+        "https://huggingface.co/blog/TechforHumans/evaluating-llms-under-production-parity"
+      ],
+      "verified_primary_source_urls": [
+        "https://huggingface.co/blog/TechforHumans/evaluating-llms-under-production-parity"
+      ]
+    },
+    {
+      "candidate_id": "cand_06",
+      "factual_accuracy": 5,
+      "evidence_strength": 4,
+      "practical_value": 4,
+      "novelty": 3,
+      "transferability": 3,
+      "teachability": 4,
+      "confidence": 5,
+      "red_flags": [],
+      "counter_evidence": [
+        "Evidence is a short GitHub changelog entry plus linked docs mention; I did not inspect the downstream documentation details or enforcement edge cases.",
+        "The feature is limited to Copilot Business and Enterprise, reducing transferability.",
+        "This mitigates one context-exposure vector, not broader governance or downstream data-handling risks."
+      ],
+      "rationale": "Verified within window: GitHub’s September 2, 2026 changelog states that the Copilot app and Copilot CLI now respect content exclusion policies configured by enterprise, organization, and repository administrators, and that excluded files are not used as context. That directly supports the candidate’s central claim. Practical value is strong for organizations expanding agentic coding usage while trying to prevent sensitive code from entering prompt context. Novelty is moderate rather than high because this is governance/control-plane expansion of an existing exclusion concept, not a new security primitive. Most important failure mode: teams may overestimate exclusions as comprehensive protection and neglect other prompt/data governance controls.",
+      "verified_source_urls": [
+        "https://github.blog/changelog/2026-09-02-content-exclusions-generally-available-in-copilot-app-and-cli/"
+      ],
+      "verified_primary_source_urls": [
+        "https://github.blog/changelog/2026-09-02-content-exclusions-generally-available-in-copilot-app-and-cli/"
+      ]
+    },
+    {
+      "candidate_id": "cand_07",
+      "factual_accuracy": 5,
+      "evidence_strength": 4,
+      "practical_value": 3,
+      "novelty": 3,
+      "transferability": 3,
+      "teachability": 4,
+      "confidence": 5,
+      "red_flags": [],
+      "counter_evidence": [
+        "This is a GitHub changelog announcement; I did not inspect the full docs or admin workflow complexity.",
+        "The capability is administrative/policy-oriented, so value depends on an organization already having clear model-governance objectives.",
+        "Limited to Copilot Business/Enterprise environments and supported clients."
+      ],
+      "rationale": "Verified within window: GitHub’s September 2, 2026 changelog says enterprise-managed settings can set the default Copilot model for new conversations and can customize that default by enterprise team, with support in the Copilot app, Copilot CLI, and VS Code. That directly supports the candidate’s factual claims about centrally managed defaults and team-based routing. Practical value is real for platform governance, though less universally important than security or reliability controls. Novelty is moderate because this is centralized policy management, not a fundamentally new modeling technique. Most important failure mode: organizations may invest in default-model routing without enough internal measurement of cost/latency/quality tradeoffs by workflow.",
+      "verified_source_urls": [
+        "https://github.blog/changelog/2026-09-02-enterprise-managed-settings-support-any-default-model/",
+        "https://github.blog/changelog/2026-07-27-enterprise-managed-settings-now-apply-to-the-github-copilot-app/"
+      ],
+      "verified_primary_source_urls": [
+        "https://github.blog/changelog/2026-09-02-enterprise-managed-settings-support-any-default-model/"
+      ]
+    },
+    {
+      "candidate_id": "cand_08",
+      "factual_accuracy": 4,
+      "evidence_strength": 3,
+      "practical_value": 3,
+      "novelty": 2,
+      "transferability": 3,
+      "teachability": 3,
+      "confidence": 4,
+      "red_flags": [],
+      "counter_evidence": [
+        "This is an incremental release note, and the candidate’s AI-engineering relevance is partly an inference rather than a stated release objective.",
+        "I verified the GitHub Actions detection improvements claim at the changelog level, but not the magnitude or specific query-delta impact for real repositories.",
+        "Impact varies materially by language mix and GitHub Actions usage."
+      ],
+      "rationale": "Verified within window: GitHub’s September 3, 2026 changelog states that CodeQL 2.26.4 adds support for Go 1.27, improves Rust alert locations, and includes accuracy improvements across C#, Java/Kotlin, and GitHub Actions. The candidate’s core factual summary matches that. The added relevance to AI-generated workflow YAML is plausible but is an inference from the release, not something directly evidenced by GitHub. Novelty is low because this is a routine improvement release. Most important failure mode: overframing a normal scanner update as a significant AI-engineering development when the direct evidence only supports incremental security-detection improvement.",
+      "verified_source_urls": [
+        "https://github.blog/changelog/2026-09-03-codeql-2-26-4-improves-github-actions-security-detections/"
+      ],
+      "verified_primary_source_urls": [
+        "https://github.blog/changelog/2026-09-03-codeql-2-26-4-improves-github-actions-security-detections/"
+      ]
+    },
+    {
+      "candidate_id": "cand_09",
+      "factual_accuracy": 4,
+      "evidence_strength": 3,
+      "practical_value": 3,
+      "novelty": 4,
+      "transferability": 2,
+      "teachability": 3,
+      "confidence": 4,
+      "red_flags": [],
+      "counter_evidence": [
+        "Primary evidence is a Google Research blog; I did not verify a paper, external benchmark replication, or detailed code/model-card evidence beyond the blog’s claims.",
+        "The claim of strong practical value is domain-specific to forecasting teams; transferability to general AI practitioners is limited.",
+        "The blog makes strong performance claims, but without independent corroboration here they should be treated cautiously."
+      ],
+      "rationale": "Verified within window: Google Research published the TimesFM-3 blog on August 31, 2026. The post states that TimesFM-3 has 330M parameters, is pretrained on more than 1 trillion time points, is natively multivariate, supports multiple targets plus covariates, and performs forecasting in a single forward pass. Those facts support the candidate’s core summary. Novelty appears strong because the shift from prior univariate TimesFM versions to native multivariate, non-autoregressive horizon prediction is substantive. Practical value is meaningful for forecasting practitioners, but transferability is narrow outside that domain. Most important failure mode: readers may accept headline benchmark superiority from a research blog without independent validation or deployment evidence.",
+      "verified_source_urls": [
+        "https://www.research.google/blog/timesfm-3-a-zero-shot-foundation-model-for-multivariate-forecasting/"
+      ],
+      "verified_primary_source_urls": [
+        "https://www.research.google/blog/timesfm-3-a-zero-shot-foundation-model-for-multivariate-forecasting/"
+      ]
+    },
+    {
+      "candidate_id": "cand_10",
+      "factual_accuracy": 4,
+      "evidence_strength": 2,
+      "practical_value": 2,
+      "novelty": 2,
+      "transferability": 2,
+      "teachability": 2,
+      "confidence": 4,
+      "red_flags": [],
+      "counter_evidence": [
+        "This is a vendor announcement about an upcoming phased rollout, not an independently validated engineering practice artifact.",
+        "The article is more governance/product positioning than a reproducible technical mechanism for readers to adopt directly.",
+        "Some claims are forward-looking ('rolling out in phases', 'starting later this fall'), which reduces immediate actionability within the evaluation window."
+      ],
+      "rationale": "Verified within window: Anthropic published 'Developing Enterprise Frontier Safeguards with our customers' on September 1, 2026. The post says Enterprise Frontier Safeguards combines zero data retention with safeguards for detecting misuse by storing data in cloud infrastructure controlled by the customer, and that rollout will occur in phases later in fall 2026. That supports the candidate’s broad description of a customer-facing safeguards/governance piece. However, evidence strength and practitioner value are limited because this is largely a vendor policy/product announcement rather than a concrete, reproducible engineering method. Most important failure mode: elevating a high-level vendor safeguards announcement to the level of a strong actionable practice item when the immediate technical substance is thin.",
+      "verified_source_urls": [
+        "https://www.anthropic.com/news/enterprise-frontier-safeguards?3433df04_page=7&e3085cf6_page=10",
+        "https://www.anthropic.com/news?draft=live"
+      ],
+      "verified_primary_source_urls": [
+        "https://www.anthropic.com/news"
+      ]
+    }
+  ],
+  "approved": [
+    {
+      "candidate": {
+        "candidate_id": "cand_07",
+        "title": "GitHub Copilot enterprise-managed default model selection",
+        "category": "engineering_practice",
+        "published_at": "2026-09-02",
+        "summary": "GitHub added enterprise-managed settings for default model selection across Copilot app, CLI, and VS Code, including team-based defaults. That sounds administrative, but it has real systems value: organizations can route different teams to different model defaults by workflow and risk profile.",
+        "novelty": "Makes model-routing policy a centrally managed enterprise setting instead of an individual preference.",
+        "practitioner_value": "Platform teams can standardize default models for latency, cost, or compliance reasons, while still allowing differentiated defaults by team.",
+        "concrete_takeaways": [
+          "Set default models centrally per team rather than letting every developer choose ad hoc.",
+          "Use team-specific defaults to align stronger models with high-value workflows and cheaper/faster models with routine tasks.",
+          "Version-control managed settings and team mappings as part of AI platform governance."
+        ],
+        "limitations": [
+          "Available in Copilot Business and Enterprise contexts.",
+          "Benefit depends on having clear internal policy for model choice by workflow."
+        ],
+        "source_urls": [
+          "https://github.blog/changelog/2026-09-02-enterprise-managed-settings-support-any-default-model/"
+        ],
+        "primary_source_urls": [
+          "https://github.blog/changelog/2026-09-02-enterprise-managed-settings-support-any-default-model/"
+        ]
+      },
+      "evaluation": {
+        "candidate_id": "cand_07",
+        "factual_accuracy": 5,
+        "evidence_strength": 4,
+        "practical_value": 3,
+        "novelty": 3,
+        "transferability": 3,
+        "teachability": 4,
+        "confidence": 5,
+        "red_flags": [],
+        "counter_evidence": [
+          "This is a GitHub changelog announcement; I did not inspect the full docs or admin workflow complexity.",
+          "The capability is administrative/policy-oriented, so value depends on an organization already having clear model-governance objectives.",
+          "Limited to Copilot Business/Enterprise environments and supported clients."
+        ],
+        "rationale": "Verified within window: GitHub’s September 2, 2026 changelog says enterprise-managed settings can set the default Copilot model for new conversations and can customize that default by enterprise team, with support in the Copilot app, Copilot CLI, and VS Code. That directly supports the candidate’s factual claims about centrally managed defaults and team-based routing. Practical value is real for platform governance, though less universally important than security or reliability controls. Novelty is moderate because this is centralized policy management, not a fundamentally new modeling technique. Most important failure mode: organizations may invest in default-model routing without enough internal measurement of cost/latency/quality tradeoffs by workflow.",
+        "verified_source_urls": [
+          "https://github.blog/changelog/2026-09-02-enterprise-managed-settings-support-any-default-model/",
+          "https://github.blog/changelog/2026-07-27-enterprise-managed-settings-now-apply-to-the-github-copilot-app/"
+        ],
+        "verified_primary_source_urls": [
+          "https://github.blog/changelog/2026-09-02-enterprise-managed-settings-support-any-default-model/"
+        ]
+      }
+    },
+    {
+      "candidate": {
+        "candidate_id": "cand_01",
+        "title": "PyTorch 2.14 release",
+        "category": "engineering_practice",
+        "published_at": "2026-09-02",
+        "summary": "PyTorch 2.14 ships several production-relevant systems changes: a new NVGEMM backend in Inductor, an in-tree nccl2 distributed backend, first-class fault-tolerance concepts in c10d, declarative dynamic shapes, and major Apple Silicon/MPS improvements. The release is unusually actionable for teams running training or inference at scale because it changes default compiler/runtime behavior rather than just adding niche APIs.",
+        "novelty": "Compiler, distributed, and device-runtime changes landed together in one release, including communication/compute overlap enabled by default and broader fault-tolerance support.",
+        "practitioner_value": "Engineers can test immediate speedups and reliability gains by upgrading, especially on distributed jobs, Apple Silicon development environments, and dynamic-shape-heavy inference/export pipelines.",
+        "concrete_takeaways": [
+          "Benchmark `torch.compile` workloads after upgrading because Inductor now enables communication/compute overlap by default.",
+          "Evaluate the new `nccl2` backend and c10d fault-tolerance features for long-running distributed jobs with node failure risk.",
+          "Use `@dynamic_spec` to unify dynamic-shape declarations across compile, export, and tracing flows.",
+          "If you support Mac developers or edge prototyping on Apple Silicon, retest MPS performance; native linear algebra and Metal-kernel migrations reduce overhead.",
+          "Try new control-flow primitives like `torch.switch` and improved `torch.while_loop` capture for dynamic models."
+        ],
+        "limitations": [
+          "Release blog summarizes many changes; per-feature maturity varies and some APIs are marked unstable.",
+          "Migration benefit depends on your hardware mix and current compiler settings."
+        ],
+        "source_urls": [
+          "https://pytorch.org/blog/pytorch-2-14-release-blog/"
+        ],
+        "primary_source_urls": [
+          "https://pytorch.org/blog/pytorch-2-14-release-blog/"
+        ]
+      },
+      "evaluation": {
+        "candidate_id": "cand_01",
+        "factual_accuracy": 4,
+        "evidence_strength": 3,
+        "practical_value": 4,
+        "novelty": 4,
+        "transferability": 4,
+        "teachability": 3,
+        "confidence": 4,
+        "red_flags": [],
+        "counter_evidence": [
+          "Evidence is primarily the PyTorch release blog and release-announcement post; I did not verify independent benchmarks or detailed release notes/PRs for each subsystem claim.",
+          "Some highlighted features are explicitly new or evolving, so maturity and upgrade benefit will vary by workload and hardware."
+        ],
+        "rationale": "Verified within the evaluation window: the PyTorch 2.14 release blog was published on September 2, 2026, and it explicitly lists NVGEMM in Inductor, a new in-tree `nccl2` distributed backend, fault tolerance as a first-class c10d concept, declarative dynamic shapes, and Apple Silicon native linear algebra/MPS work. A PyTorch developer mailing-list GA announcement also corroborates that 2.14.0 was generally available that day. The candidate’s core summary is therefore directionally accurate and timely. What remains uncertain is the strength of the claimed real-world speedups/reliability gains, because I did not verify per-feature benchmarks, defaults, or stability from lower-level release notes or code changes. Most important failure mode: readers may overgeneralize vendor release highlights into guaranteed production wins without workload-specific validation.",
+        "verified_source_urls": [
+          "https://pytorch.org/blog/pytorch-2-14-release-blog/",
+          "https://dev-discuss.pytorch.org/t/pytorch-2-14-0-general-availability/3431"
+        ],
+        "verified_primary_source_urls": [
+          "https://pytorch.org/blog/pytorch-2-14-release-blog/"
+        ]
+      }
+    }
+  ],
+  "gate_results": [
+    {
+      "candidate_id": "cand_01",
+      "approved": true,
+      "rejection_reasons": []
+    },
+    {
+      "candidate_id": "cand_02",
+      "approved": false,
+      "rejection_reasons": [
+        "insufficient_verified_sources"
+      ]
+    },
+    {
+      "candidate_id": "cand_03",
+      "approved": false,
+      "rejection_reasons": [
+        "insufficient_verified_sources"
+      ]
+    },
+    {
+      "candidate_id": "cand_04",
+      "approved": false,
+      "rejection_reasons": [
+        "insufficient_verified_sources",
+        "evidence_strength_below_3",
+        "weighted_score_below_threshold"
+      ]
+    },
+    {
+      "candidate_id": "cand_05",
+      "approved": false,
+      "rejection_reasons": [
+        "insufficient_verified_sources",
+        "factual_accuracy_below_4",
+        "evidence_strength_below_3",
+        "weighted_score_below_threshold"
+      ]
+    },
+    {
+      "candidate_id": "cand_06",
+      "approved": false,
+      "rejection_reasons": [
+        "insufficient_verified_sources"
+      ]
+    },
+    {
+      "candidate_id": "cand_07",
+      "approved": true,
+      "rejection_reasons": []
+    },
+    {
+      "candidate_id": "cand_08",
+      "approved": false,
+      "rejection_reasons": [
+        "insufficient_verified_sources",
+        "weighted_score_below_threshold"
+      ]
+    },
+    {
+      "candidate_id": "cand_09",
+      "approved": false,
+      "rejection_reasons": [
+        "insufficient_verified_sources",
+        "candidate_primary_source_not_reverified",
+        "weighted_score_below_threshold"
+      ]
+    },
+    {
+      "candidate_id": "cand_10",
+      "approved": false,
+      "rejection_reasons": [
+        "evidence_strength_below_3",
+        "weighted_score_below_threshold"
+      ]
+    }
+  ],
+  "candidate_count": 10,
+  "evaluation_count": 10,
+  "configuration": {
+    "max_topics": 3,
+    "minimum_score": 70.0,
+    "minimum_verified_sources": 2,
+    "discovery_model": "gpt-5.4",
+    "evaluation_model": "gpt-5.4",
+    "editor_model": "gpt-5.4"
+  }
+}

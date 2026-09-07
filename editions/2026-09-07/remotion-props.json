@@ -1,0 +1,356 @@
+{
+  "editionDate": "2026-09-07",
+  "windowStart": "2026-08-31",
+  "windowEnd": "2026-09-06",
+  "title": "本周可落地的 AI 工程变化：团队级模型路由与 PyTorch 2.14 升级检查",
+  "subtitle": "只基于已批准候选与评估结论的 Remotion 视频方案",
+  "disclosure": "本视频旁白由 OpenAI 的人工智能语音生成，并非真人录音。",
+  "candidateCount": 10,
+  "approvedCount": 2,
+  "fps": 30,
+  "width": 1920,
+  "height": 1080,
+  "totalDurationInFrames": 10264,
+  "scenes": [
+    {
+      "scene_id": "scene01",
+      "topic_id": null,
+      "kind": "intro",
+      "accent": "cyan",
+      "eyebrow": "Edition Scope",
+      "title": "不是新模型新闻，而是本周能试的工程变化",
+      "subtitle": "平台治理一题，基础设施升级一题",
+      "narration": "本视频旁白由 OpenAI 的人工智能语音生成，并非真人录音。这段旁白由 AI 生成，并且只依据本期已批准材料来讲。这个版本刻意不追新模型发布，而是选两个工程团队本周更容易试、也更接近落地的问题：一个是 GitHub Copilot 的团队级默认模型策略，另一个是 PyTorch 2.14 对编译、分布式、dynamic shapes 和设备运行时带来的升级检查点。",
+      "on_screen_points": [
+        "AI-generated narration",
+        "2 approved topics",
+        "治理 + 基础设施",
+        "不扩展未验证细节"
+      ],
+      "visual_labels": [
+        "edition window",
+        "approved topics card",
+        "not model release headline",
+        "engineering practice focus"
+      ],
+      "topicIndex": null,
+      "audioSrc": "generated/2026-09-07/01-scene01-baf5e63bc5c2.wav",
+      "audioDurationSeconds": 35.6,
+      "startFrame": 0,
+      "durationInFrames": 1092,
+      "captionChunks": [
+        "本视频旁白由 OpenAI 的人工智能语音生成，并非真人录音。",
+        "这段旁白由 AI 生成，并且只依据本期已批准材料来讲。",
+        "这个版本刻意不追新模型发布，而是选两个工程团队本周更容易试、也更接近",
+        "落地的问题：一个是 GitHub Copilot",
+        "的团队级默认模型策略，另一个是 PyTorch 2.14",
+        "对编译、分布式、dynamic shapes",
+        "和设备运行时带来的升级检查点。"
+      ]
+    },
+    {
+      "scene_id": "scene02",
+      "topic_id": null,
+      "kind": "evaluation_funnel",
+      "accent": "amber",
+      "eyebrow": "Evaluation Funnel",
+      "title": "10 选 2：先过硬门槛，再回到原始来源",
+      "subtitle": "只保留能被复核、且适合本周工程实践的题目",
+      "narration": "本期一共看了 10 个候选，最终只通过 2 个，分数分别对应 cand_07 和 cand_01。流程上先按评估结论做硬门槛筛选，再回到 primary source 复核，确认发布窗口、已明确声明的能力边界，以及哪些地方不能外推。也正因为这样，本期不会给出超出 changelog、release blog 和 GA announcement 的额外承诺。",
+      "on_screen_points": [
+        "Candidates: 10",
+        "Approved: 2",
+        "Primary-source re-check",
+        "Hard gates first"
+      ],
+      "visual_labels": [
+        "funnel 10-to-2",
+        "score cards cand_07 cand_01",
+        "source verification loop",
+        "hard gate filter"
+      ],
+      "topicIndex": null,
+      "audioSrc": "generated/2026-09-07/02-scene02-c6213e81c190.wav",
+      "audioDurationSeconds": 30.1,
+      "startFrame": 1092,
+      "durationInFrames": 928,
+      "captionChunks": [
+        "本期一共看了 10 个候选，最终只通过 2 个，分数分别对应",
+        "cand_07 和 cand_01。",
+        "流程上先按评估结论做硬门槛筛选，再回到 primary source",
+        "复核，确认发布窗口、已明确声明的能力边界，以及哪些地方不能外推。",
+        "也正因为这样，本期不会给出超出 changelog、release",
+        "blog 和 GA announcement 的额外承诺。"
+      ]
+    },
+    {
+      "scene_id": "scene03",
+      "topic_id": "cand_07",
+      "kind": "problem",
+      "accent": "cyan",
+      "eyebrow": "Topic 1 Problem",
+      "title": "默认模型如果只靠个人偏好，治理就会失焦",
+      "subtitle": "团队想控 cost、latency、compliance，却没有统一入口",
+      "narration": "先看 Copilot 这一题。很多组织真正的问题，不是模型不够多，而是开发者各自选模型，结果 cost、latency 和 compliance 的取舍分散在个人习惯里。已批准材料强调，这次变化的价值在于把默认模型选择从零散客户端偏好，推进到平台团队可按 enterprise team 统一设定。前提也很明确：你得先知道不同团队到底在为什么做取舍。",
+      "on_screen_points": [
+        "个人偏好分散",
+        "cost / latency / compliance",
+        "团队差异存在",
+        "需要统一入口"
+      ],
+      "visual_labels": [
+        "developer-by-developer model choices",
+        "governance drift diagram",
+        "team risk profile matrix",
+        "pre-policy vs managed policy"
+      ],
+      "topicIndex": 1,
+      "audioSrc": "generated/2026-09-07/03-scene03-0ca6d65c3886.wav",
+      "audioDurationSeconds": 34.45,
+      "startFrame": 2020,
+      "durationInFrames": 1058,
+      "captionChunks": [
+        "先看 Copilot 这一题。",
+        "很多组织真正的问题，不是模型不够多，而是开发者各自选模型，结果",
+        "cost、latency 和 compliance",
+        "的取舍分散在个人习惯里。",
+        "已批准材料强调，这次变化的价值在于把默认模型选择从零散客户端偏好",
+        "推进到平台团队可按 enterprise team 统一设定。",
+        "前提也很明确：你得先知道不同团队到底在为什么做取舍。"
+      ]
+    },
+    {
+      "scene_id": "scene04",
+      "topic_id": "cand_07",
+      "kind": "mechanism",
+      "accent": "cyan",
+      "eyebrow": "Topic 1 Mechanism",
+      "title": "核心不是更强模型，而是 default model routing policy",
+      "subtitle": "通过 enterprise-managed settings 下发团队默认值",
+      "narration": "它的机制要讲得非常克制：不是按请求动态切换，也不是任意复杂路由，而是 default model routing policy。平台团队先定义团队到默认模型的映射，再通过 enterprise-managed settings 下发。这样新会话会先落到组织指定的默认模型。材料还点出覆盖面已经不只是单点设置，而是涉及 Copilot app、Copilot CLI 和 VS Code。",
+      "on_screen_points": [
+        "default model routing policy",
+        "team -> default model",
+        "enterprise-managed settings",
+        "new session gets default"
+      ],
+      "visual_labels": [
+        "team-to-model mapping diagram",
+        "managed settings flow",
+        "new session routing arrow",
+        "Copilot app CLI VS Code badges"
+      ],
+      "topicIndex": 1,
+      "audioSrc": "generated/2026-09-07/04-scene04-ec8b001ec55f.wav",
+      "audioDurationSeconds": 33.6,
+      "startFrame": 3078,
+      "durationInFrames": 1032,
+      "captionChunks": [
+        "它的机制要讲得非常克制：不是按请求动态切换，也不是任意复杂路由，而是",
+        "default model routing policy。",
+        "平台团队先定义团队到默认模型的映射，再通过",
+        "enterprise-managed settings 下发。",
+        "这样新会话会先落到组织指定的默认模型。",
+        "材料还点出覆盖面已经不只是单点设置，而是涉及 Copilot",
+        "app、Copilot CLI 和 VS Code。"
+      ]
+    },
+    {
+      "scene_id": "scene05",
+      "topic_id": "cand_07",
+      "kind": "demo",
+      "accent": "cyan",
+      "eyebrow": "Topic 1 Demo + Limits",
+      "title": "先做最小策略表，再检查你有没有治理目标",
+      "subtitle": "可复现演练，不把默认值误读成动态路由",
+      "narration": "一个可复现的最小演练是这样的：先写一张文本或 YAML 策略表，比如 `platform-team -> model_A`，`app-team -> model_B`。再挑两类任务，像 code review、架构讨论，对比样板代码补全、命令行帮助，只用 latency、cost、compliance 和 workflow、risk profile 去解释为什么默认值不同。把映射纳入版本控制后，再专门看失败场景：如果团队说不清依据，就说明还不适合推广。证据边界也要保留：已核实的是团队级默认模型，不应外推成更细粒度或按请求动态路由。",
+      "on_screen_points": [
+        "YAML mapping demo",
+        "2 task classes",
+        "Only verified dimensions",
+        "Limit: not dynamic routing"
+      ],
+      "visual_labels": [
+        "terminal YAML snippet",
+        "task-class comparison",
+        "version-control commit card",
+        "evidence boundary warning"
+      ],
+      "topicIndex": 1,
+      "audioSrc": "generated/2026-09-07/05-scene05-a93518f9d13c.wav",
+      "audioDurationSeconds": 47.3,
+      "startFrame": 4110,
+      "durationInFrames": 1443,
+      "captionChunks": [
+        "一个可复现的最小演练是这样的：先写一张文本或 YAML 策略表，比如",
+        "`platform-team -> model_A`",
+        "`app-team -> model_B`。",
+        "再挑两类任务，像 code review、架构讨论",
+        "对比样板代码补全、命令行帮助，只用",
+        "latency、cost、compliance 和",
+        "workflow、risk profile 去解释为什么默认值不同。",
+        "把映射纳入版本控制后，再专门看失败场景：如果团队说不清依据",
+        "就说明还不适合推广。",
+        "证据边界也要保留：已核实的是团队级默认模型",
+        "不应外推成更细粒度或按请求动态路由。"
+      ]
+    },
+    {
+      "scene_id": "scene06",
+      "topic_id": "cand_01",
+      "kind": "problem",
+      "accent": "violet",
+      "eyebrow": "Topic 2 Problem",
+      "title": "升级 PyTorch 时，风险常常藏在执行路径变化里",
+      "subtitle": "不是看有没有新 API，而是看现有 workload 会不会被改写",
+      "narration": "第二题看 PyTorch 2.14。这里最容易犯的错，是把版本升级理解成多几个新接口，然后直接问值不值得上。已批准材料的重点刚好相反：这次更重要的是 compiler、runtime、distributed、dynamic shapes 和设备运行时一起动了，所以你原有 workload 的执行路径、调度方式和回归测试重点，都可能需要重新检查。",
+      "on_screen_points": [
+        "not just new APIs",
+        "execution path changes",
+        "compiler + runtime + distributed",
+        "needs regression checks"
+      ],
+      "visual_labels": [
+        "stack layers compiler-runtime-distributed",
+        "before-after execution path",
+        "upgrade risk map",
+        "workload regression checklist"
+      ],
+      "topicIndex": 2,
+      "audioSrc": "generated/2026-09-07/06-scene06-4eafe2c899cb.wav",
+      "audioDurationSeconds": 30.2,
+      "startFrame": 5553,
+      "durationInFrames": 930,
+      "captionChunks": [
+        "第二题看 PyTorch 2.14。",
+        "这里最容易犯的错，是把版本升级理解成多几个新接口",
+        "然后直接问值不值得上。",
+        "已批准材料的重点刚好相反：这次更重要的是",
+        "compiler、runtime、distributed、dynam",
+        "ic shapes 和设备运行时一起动了，所以你原有",
+        "workload 的执行路径、调度方式和回归测试重点",
+        "都可能需要重新检查。"
+      ]
+    },
+    {
+      "scene_id": "scene07",
+      "topic_id": "cand_01",
+      "kind": "mechanism",
+      "accent": "violet",
+      "eyebrow": "Topic 2 Mechanism",
+      "title": "把 2.14 拆成四个机制检查点",
+      "subtitle": "Inductor、distributed、dynamic shapes、Apple Silicon/MPS",
+      "narration": "按机制拆开会更清楚。第一，材料提到 Inductor 引入 NVGEMM backend，并且 communication 与 compute overlap 默认开启，说明 `torch.compile` 后的执行与调度路径可能变化。第二，in-tree `nccl2` backend 和 c10d fault-tolerance，提示分布式训练要新增通信与故障恢复测试点。第三，`@dynamic_spec` 把 dynamic shapes 更统一地连到 compile、export 和 tracing。第四，Apple Silicon 与 MPS 改进意味着本地原型环境也该重测。",
+      "on_screen_points": [
+        "Inductor / NVGEMM",
+        "comm-compute overlap",
+        "nccl2 + c10d fault-tolerance",
+        "@dynamic_spec + MPS"
+      ],
+      "visual_labels": [
+        "four-mechanism panel",
+        "compile path card",
+        "distributed test points",
+        "dynamic shapes pipeline"
+      ],
+      "topicIndex": 2,
+      "audioSrc": "generated/2026-09-07/07-scene07-c692de4a6161.wav",
+      "audioDurationSeconds": 43.05,
+      "startFrame": 6483,
+      "durationInFrames": 1316,
+      "captionChunks": [
+        "按机制拆开会更清楚。",
+        "第一，材料提到 Inductor 引入 NVGEMM backend",
+        "并且 communication 与 compute overlap",
+        "默认开启，说明 `torch.compile`",
+        "后的执行与调度路径可能变化。",
+        "第二，in-tree `nccl2` backend 和 c10d",
+        "fault-tolerance，提示分布式训练要新增通信与故障恢复测",
+        "试点。",
+        "第三，`@dynamic_spec` 把 dynamic",
+        "shapes 更统一地连到 compile、export 和",
+        "tracing。",
+        "第四，Apple Silicon 与 MPS",
+        "改进意味着本地原型环境也该重测。"
+      ]
+    },
+    {
+      "scene_id": "scene08",
+      "topic_id": "cand_01",
+      "kind": "evidence_and_limits",
+      "accent": "violet",
+      "eyebrow": "Topic 2 Demo + Limits",
+      "title": "最小升级验证：先重跑 `torch.compile`，再换两组 shape",
+      "subtitle": "把 release 信息转成你自己的 workload 检查单",
+      "narration": "最小 demo 不需要大工程。先拿你现有一个小型 PyTorch 脚本，记录升级前基线：运行时间、是否用了 `torch.compile`、输入 shape 是否固定。升到 2.14 后，先只重跑同一条 `torch.compile` 路径，看能否正常工作，再给两组不同 shape 输入，检查是否需要用 `@dynamic_spec` 思路统一声明。若提到 distributed 或 MPS，也只能作为值得评估的检查点，不应直接假设线上能无缝替换，更不能把 release blog 的方向性描述说成通用提速或通用稳定性提升。",
+      "on_screen_points": [
+        "baseline first",
+        "rerun `torch.compile`",
+        "2 input shapes",
+        "Limit: no universal speedup claim"
+      ],
+      "visual_labels": [
+        "terminal rerun steps",
+        "baseline vs 2.14 card",
+        "two-shape input diagram",
+        "evidence-limit banner"
+      ],
+      "topicIndex": 2,
+      "audioSrc": "generated/2026-09-07/08-scene08-c46cc641285f.wav",
+      "audioDurationSeconds": 41.85,
+      "startFrame": 7799,
+      "durationInFrames": 1280,
+      "captionChunks": [
+        "最小 demo 不需要大工程。",
+        "先拿你现有一个小型 PyTorch 脚本",
+        "记录升级前基线：运行时间、是否用了",
+        "`torch.compile`、输入 shape 是否固定。",
+        "升到 2.14 后，先只重跑同一条 `torch.compile`",
+        "路径，看能否正常工作，再给两组不同 shape 输入，检查是否需要用",
+        "`@dynamic_spec` 思路统一声明。",
+        "若提到 distributed 或 MPS",
+        "也只能作为值得评估的检查点，不应直接假设线上能无缝替换，更不能把",
+        "release blog 的方向性描述说成通用提速或通用稳定性提升。"
+      ]
+    },
+    {
+      "scene_id": "scene09",
+      "topic_id": null,
+      "kind": "decision_guide",
+      "accent": "amber",
+      "eyebrow": "Decision Guide",
+      "title": "怎么选：先问你是在治理模型选择，还是在重测执行基础层",
+      "subtitle": "两个题目分别回答不同工程问题",
+      "narration": "最后把选择条件说直白一点。如果你已经在 Copilot Business 或 Enterprise 里，并且平台团队想减少开发者随意选模型带来的成本漂移或合规不一致，就优先看 cand_07；但前提是你已经有按团队或工作流区分偏好的治理原则。如果你维护训练或推理系统，手上有 `torch.compile`、distributed training、dynamic-shape-heavy pipeline，或者 Apple Silicon 本地开发路径，那 cand_01 更值得先做 workload-specific 验证。",
+      "on_screen_points": [
+        "Governance need -> cand_07",
+        "Infra upgrade need -> cand_01",
+        "Need policy before routing",
+        "Need benchmarks before rollout"
+      ],
+      "visual_labels": [
+        "decision tree",
+        "topic fit matrix",
+        "governance vs infrastructure split",
+        "next-step checklist"
+      ],
+      "topicIndex": null,
+      "audioSrc": "generated/2026-09-07/09-scene09-1d8ee14ffde2.wav",
+      "audioDurationSeconds": 38.7,
+      "startFrame": 9079,
+      "durationInFrames": 1185,
+      "captionChunks": [
+        "最后把选择条件说直白一点。",
+        "如果你已经在 Copilot Business 或",
+        "Enterprise 里，并且平台团队想减少开发者随意选模型带来的成",
+        "本漂移或合规不一致，就优先看 cand_07；",
+        "但前提是你已经有按团队或工作流区分偏好的治理原则。",
+        "如果你维护训练或推理系统，手上有 `torch.compile`、d",
+        "istributed training、dynamic-shape-",
+        "heavy pipeline，或者 Apple Silicon",
+        "本地开发路径，那 cand_01 更值得先做",
+        "workload-specific 验证。"
+      ]
+    }
+  ]
+}
