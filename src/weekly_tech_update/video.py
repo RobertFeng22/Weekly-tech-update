@@ -26,9 +26,13 @@ VIDEO_SECTION_END = "<!-- WEEKLY_VIDEO_END -->"
 _CAPTION_BREAK = re.compile(r"(?<=[。！？；])")
 TTS_INSTRUCTIONS = (
     "Use natural, professional Standard Mandarin. Sound like a senior AI "
-    "engineering educator: calm, precise, conversational, and energetic "
-    "at key contrasts. Preserve English technical terms and code identifiers, "
-    "use short pauses between ideas, and never sound like a commercial."
+    "strategist briefing a business and investment founder: calm, precise, "
+    "conversational, and energetic at key contrasts. Explain technical concepts "
+    "without assuming an engineering workflow. Emphasize the named Neural Alpha "
+    "priority, current constraint, causal impact chain, evidence limits, and "
+    "decision or internal evaluation. Preserve necessary "
+    "English technical terms but explain them on first use, use short pauses "
+    "between ideas, and never sound like a commercial."
 )
 
 

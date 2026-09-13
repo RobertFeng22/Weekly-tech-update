@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "weekly-tech-update"
 version = "0.1.0"
-description = "Evidence-gated weekly AI engineering update with Remotion video generation"
+description = "Context-gated weekly AI intelligence briefing with Remotion video generation"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [

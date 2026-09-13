@@ -4,6 +4,7 @@ __pycache__/
 *.py[cod]
 .DS_Store
 .env
+.local/
 node_modules/
 public/generated/
 video/public/generated/

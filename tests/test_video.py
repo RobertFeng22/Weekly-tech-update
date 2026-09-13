@@ -7,6 +7,7 @@ import pytest
 
 from weekly_tech_update.models import (
     Category,
+    NeuralAlphaPriorityId,
     Topic,
     VideoAccent,
     VideoPlan,
@@ -31,14 +32,26 @@ from weekly_tech_update.video import (
 def _topic() -> Topic:
     return Topic(
         candidate_id="topic-1",
-        title="A source-grounded engineering topic",
-        category=Category.ENGINEERING,
-        one_sentence_value="这是一个可以在下周直接设计实验验证的工程机制。",
-        why_now="它在本周首次发布了可运行实现、明确的验证边界与可以复用的实验步骤，因此值得及时学习并在自己的工作负载上复测。",
-        lesson="机制解释必须足够完整。" * 20,
-        hands_on_demo=["建立 baseline", "运行 treatment", "比较结果"],
-        when_to_use=["延迟是主要瓶颈"],
-        when_not_to_use=["缺少可比 baseline"],
+        title="A source-grounded capability frontier topic",
+        category=Category.CAPABILITY,
+        one_sentence_value="这项进展改变了复杂知识工作的可靠性边界，值得重新评估。",
+        why_now="它在本周首次发布了可核验结果、明确的验证边界和可以复测的评估方法，因此值得及时纳入业务与投资判断。",
+        capability_boundary_change=(
+            "此前系统在跨来源推理中频繁失去证据链，这项进展显示它在受控条件下可以保持更完整的来源对应关系。"
+        ),
+        neural_alpha_priority_ids=[NeuralAlphaPriorityId.AGENTIC_RESEARCH],
+        neural_alpha_impact_chain=(
+            "如果独立复测成立，AI-native fund 可以把更多研究步骤交给系统，同时用明确审计点保留人类判断和风险控制。"
+            "这会影响研究覆盖面的上限、分析师分工方式，以及机构应该把资源投入数据、evaluation 还是更多人工复核。"
+        ),
+        business_brief=(
+            "关键不是某个工程组件变快，而是复杂知识工作从无法稳定委托，转向可以在有限边界内进行受控验证。"
+            "对投资机构而言，这可能改变研究覆盖面、事件解释速度和分析师与 agent 的分工，但作者结果不能直接等同于真实投资环境。"
+            "决策者应先定义内部高价值任务和失败成本，再建立与人工 baseline 对照的评估，记录来源完整性、错误类型和需要升级给人的节点。"
+            "只有当质量、速度和可审计性同时改善，才值得扩大部署；否则这仍然只是值得跟踪的能力信号。"
+        ),
+        decision_takeaways=["定义内部高价值评估任务", "与人工 baseline 做盲测"],
+        what_to_watch=["独立复现能否保持效果", "真实研究任务中的错误分布"],
         caveats=["当前证据仍然有限"],
         source_urls=["https://example.com/source"],
         video_direction=(
@@ -53,8 +66,8 @@ def _context() -> EditionContext:
         window_start=date(2026, 8, 19),
         window_end=date(2026, 8, 25),
         editorial_note=(
-            "本期只保留了通过证据与实用价值硬门槛的工程主题，并要求每个结论保留来源、"
-            "适用条件、失败模式和可以在团队内部复现的最小实验。"
+            "本期只保留了同时通过证据、AI 能力边界和 AI-native fund 相关性门槛的主题，"
+            "并要求每个结论保留来源、决策含义、失败模式和后续观察信号。"
         ),
         topics=[_topic()],
     )
@@ -96,7 +109,7 @@ def _plan() -> VideoPlan:
         window_start=date(2026, 8, 19),
         window_end=date(2026, 8, 25),
         title="AI Weekly",
-        subtitle="Evidence-gated lessons for AI engineers",
+        subtitle="Evidence-gated frontier briefing for an AI-native fund",
         disclosure="旁白将由人工智能语音生成，并在画面中持续披露。",
         scenes=scenes,
     )

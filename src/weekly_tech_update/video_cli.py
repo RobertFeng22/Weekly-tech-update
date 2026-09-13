@@ -17,7 +17,9 @@ from .video import (
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Generate OpenAI TTS assets and Remotion props for an AI Weekly edition"
+        description=(
+            "Generate OpenAI TTS assets and Remotion props for an AI frontier briefing"
+        )
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 

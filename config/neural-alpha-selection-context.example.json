@@ -1,0 +1,42 @@
+{
+  "version": "replace-with-private-context-version",
+  "as_of": "2026-09-09",
+  "public_safe": true,
+  "audience": "Business and investment decision-maker at an AI-native investment firm.",
+  "fund_identity": "Replace this example with a reviewed private context snapshot supplied locally or through an encrypted repository secret.",
+  "strategy_wedge": "State the current strategy wedge at the minimum disclosure level needed for selection.",
+  "selection_objective": "Select external developments that change a named current decision, architecture contract, evaluation, risk boundary, data plan, or investment hypothesis.",
+  "priorities": [
+    {
+      "priority_id": "agentic_research_and_control",
+      "label": "Example active priority",
+      "status": "active",
+      "weight": 5,
+      "current_state": "Describe the current state without credentials, counterparties, capital, private datasets, or proprietary thresholds.",
+      "current_need": "Describe the current decision or blocker that external research could change.",
+      "high_value_signals": [
+        "A verified external change with a direct transmission mechanism",
+        "A bounded internal evaluation that can falsify the claimed transfer"
+      ],
+      "false_friends": [
+        "Generic relevance to finance or AI",
+        "Vendor popularity without a current-priority path"
+      ]
+    },
+    {
+      "priority_id": "fund_operations_and_regulation",
+      "label": "Example watch-only priority",
+      "status": "watch",
+      "weight": 3,
+      "current_state": "A lower-priority area that should not pass the active-priority gate.",
+      "current_need": "Monitor only material changes.",
+      "high_value_signals": ["A change large enough to alter the operating plan"],
+      "false_friends": ["Routine commentary"]
+    }
+  ],
+  "global_non_goals": [
+    "Do not select a topic because it is popular or broadly relevant.",
+    "Do not expose private context in public artifacts.",
+    "Do not infer transfer from an external benchmark without a bounded internal evaluation."
+  ]
+}
