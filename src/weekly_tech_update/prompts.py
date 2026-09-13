@@ -96,6 +96,16 @@ or serving update must score at most 2 for `current_priority_relevance`,
 Neural Alpha contract and provides enough detail for a relevant evaluation.
 Popularity, company size, and generic "finance use cases" do not increase scores.
 
+Normally require at least two verified sources. Set
+`authoritative_primary_sufficient=true` only when one complete authoritative
+primary artifact directly establishes the narrowly framed central fact—for
+example an official product interface, regulator standard, paper, system card, or
+incident report—and independent corroboration is not needed to establish what was
+published. Keep it false for performance, safety, generalization, transfer, or
+independent-reproduction claims; for partial pages; or whenever the candidate
+extends beyond what the primary artifact directly says. A single-primary item
+must preserve the first-party or not-independently-reproduced limitation.
+
 Set `engineering_only=true` when the value is limited to people implementing or
 operating a framework and no current strategy/architecture contract changes. Set
 `generic_relevance_only=true` when the claimed fund impact would apply equally to

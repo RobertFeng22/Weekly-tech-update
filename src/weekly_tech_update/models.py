@@ -237,6 +237,7 @@ class Evaluation(BaseModel):
     factual_accuracy: int = Field(ge=0, le=5)
     evidence_strength: int = Field(ge=0, le=5)
     frontier_significance: int = Field(ge=0, le=5)
+    authoritative_primary_sufficient: bool
     admission_mode_supported: bool
     engineering_only: bool
     generic_relevance_only: bool
@@ -263,6 +264,7 @@ class Evaluation(BaseModel):
             return value
         payload = dict(value)
         payload.setdefault("frontier_significance", payload.get("novelty"))
+        payload.setdefault("authoritative_primary_sufficient", False)
         legacy_relevance = payload.get(
             "ai_native_fund_relevance", payload.get("practical_value")
         )

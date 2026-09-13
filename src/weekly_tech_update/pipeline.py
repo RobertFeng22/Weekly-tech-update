@@ -173,7 +173,17 @@ def gate_rejection_reasons(
     verified = _url_set(evaluation.verified_source_urls)
     primary = _url_set(evaluation.verified_primary_source_urls)
     cited_primary = _url_set(candidate.primary_source_urls)
-    if len(verified) < minimum_verified_sources:
+    authoritative_primary_exception = (
+        evaluation.authoritative_primary_sufficient
+        and bool(primary & cited_primary)
+        and len(verified) >= 1
+        and evaluation.factual_accuracy >= 4
+        and evaluation.evidence_strength >= 4
+    )
+    if (
+        len(verified) < minimum_verified_sources
+        and not authoritative_primary_exception
+    ):
         reasons.append("insufficient_verified_sources")
     if not primary or not (primary & cited_primary):
         reasons.append("candidate_primary_source_not_reverified")

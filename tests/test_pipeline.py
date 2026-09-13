@@ -87,6 +87,7 @@ def evaluation(**overrides):
         "factual_accuracy": 5,
         "evidence_strength": 4,
         "frontier_significance": 5,
+        "authoritative_primary_sufficient": False,
         "admission_mode_supported": True,
         "engineering_only": False,
         "generic_relevance_only": False,
@@ -142,6 +143,49 @@ def test_hard_gates_reject_red_flags_and_out_of_window_items():
     assert not apply_hard_gates(
         [candidate(published_at="2026-08-16")], [evaluation()], **common
     )
+
+
+def test_complete_authoritative_primary_can_satisfy_source_gate():
+    approved = apply_hard_gates(
+        [
+            candidate(
+                source_urls=["https://example.com/primary"],
+                primary_source_urls=["https://example.com/primary"],
+            )
+        ],
+        [
+            evaluation(
+                authoritative_primary_sufficient=True,
+                verified_source_urls=["https://example.com/primary"],
+                verified_primary_source_urls=["https://example.com/primary"],
+            )
+        ],
+        window_start=date(2026, 8, 17),
+        window_end=date(2026, 8, 23),
+        minimum_score=70,
+        minimum_verified_sources=2,
+    )
+    assert [item.candidate.candidate_id for item in approved] == ["item-1"]
+
+
+def test_single_primary_exception_fails_when_evidence_is_not_strong():
+    reasons = gate_rejection_reasons(
+        candidate(
+            source_urls=["https://example.com/primary"],
+            primary_source_urls=["https://example.com/primary"],
+        ),
+        evaluation(
+            evidence_strength=3,
+            authoritative_primary_sufficient=True,
+            verified_source_urls=["https://example.com/primary"],
+            verified_primary_source_urls=["https://example.com/primary"],
+        ),
+        window_start=date(2026, 8, 17),
+        window_end=date(2026, 8, 23),
+        minimum_score=70,
+        minimum_verified_sources=2,
+    )
+    assert "insufficient_verified_sources" in reasons
 
 
 def test_narrow_engineering_update_fails_audience_fit_gates():

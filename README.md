@@ -22,7 +22,7 @@
 - `direct_build_leverage`：新方法可直接降低一个 active strategy/architecture blocker 的验证成本，要求 `transfer_readiness >= 4/5`；
 - `strategic_constraint_or_threat`：data rights、security、policy、platform 或 market structure 变化会迫使计划改变，要求 `strategic_magnitude >= 4/5`。
 
-无论走哪条 route，都必须满足：至少两个经核验来源；primary source 被重新确认；`factual_accuracy >= 4/5`、`evidence_strength >= 3/5`、`current_priority_relevance >= 4/5`、`max(strategy_impact, architecture_impact) >= 4/5`、`relevance_path_quality >= 4/5`、`business_decision_value >= 3/5`、总分 `>= 70/100`；candidate 和 evaluator 的 priority IDs 必须与 context 中 `active + weight >= 4` 的 priority 相交。Evaluator 若判定 `engineering_only` 或 `generic_relevance_only`，直接 block。任何未解决的 `red_flags` 也会淘汰候选。没有内容达标时任务会失败，不会凑数。
+无论走哪条 route，都必须满足：通常至少两个经核验来源；primary source 被重新确认；`factual_accuracy >= 4/5`、`evidence_strength >= 3/5`、`current_priority_relevance >= 4/5`、`max(strategy_impact, architecture_impact) >= 4/5`、`relevance_path_quality >= 4/5`、`business_decision_value >= 3/5`、总分 `>= 70/100`；candidate 和 evaluator 的 priority IDs 必须与 context 中 `active + weight >= 4` 的 priority 相交。若一个完整 authoritative primary artifact 足以直接证明被严格限定的发布事实，evaluator 可显式设置 `authoritative_primary_sufficient=true`，但此时 `factual_accuracy` 和 `evidence_strength` 都必须至少 4/5；该例外不能用于 performance、safety、generalization、transfer 或 independent-reproduction claim。Evaluator 若判定 `engineering_only` 或 `generic_relevance_only`，直接 block。任何未解决的 `red_flags` 也会淘汰候选。没有内容达标时任务会失败，不会凑数。
 
 普通 PyTorch / SDK / serving 更新、泛 productivity、generic sentiment、融资新闻和“AI 将改变金融”这类叙事，即使是大公司发布，也不会因为流行度或宽泛 finance use case 获得相关性分数。
 
