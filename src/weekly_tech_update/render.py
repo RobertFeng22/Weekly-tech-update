@@ -21,6 +21,55 @@ def _links(urls: list[object]) -> str:
     return "\n".join(f"- {url}" for url in urls)
 
 
+_REJECTION_LABELS = {
+    "outside_reporting_window": "不在本周窗口",
+    "insufficient_verified_sources": "来源核验不足",
+    "candidate_primary_source_not_reverified": "primary source 未复核",
+    "admission_mode_not_supported": "admission route 不成立",
+    "engineering_only": "仅有工程实现价值",
+    "generic_relevance_only": "与 Neural Alpha 只有泛相关",
+    "no_validated_current_priority_match": "未命中当前高权重 priority",
+    "unresolved_red_flags": "存在未解决 red flag",
+    "weighted_score_below_threshold": "总分未达门槛",
+}
+
+
+def _render_rejection_summary(gate_results: list[dict[str, object]]) -> str:
+    counts: dict[str, int] = {}
+    for result in gate_results:
+        if result.get("approved"):
+            continue
+        reasons = result.get("rejection_reasons", [])
+        if not isinstance(reasons, list):
+            continue
+        for reason in reasons:
+            if not isinstance(reason, str):
+                continue
+            label = _REJECTION_LABELS.get(reason)
+            if label is None:
+                if reason.startswith("current_priority_relevance_below_"):
+                    label = "当前 priority 相关性不足"
+                elif reason.startswith("strategy_or_architecture_impact_below_"):
+                    label = "strategy / architecture impact 不足"
+                elif reason.startswith("relevance_path_quality_below_"):
+                    label = "relevance path 不完整"
+                elif reason.startswith("business_decision_value_below_"):
+                    label = "缺少决策价值"
+                elif reason.startswith("frontier_significance_below_"):
+                    label = "frontier significance 不足"
+                elif reason.startswith("transfer_readiness_below_"):
+                    label = "不可直接转化为内部 evaluation"
+                elif reason.startswith("strategic_constraint_magnitude_below_"):
+                    label = "战略约束影响不足"
+                else:
+                    label = reason
+            counts[label] = counts.get(label, 0) + 1
+    if not counts:
+        return "没有候选被 hard gates 淘汰。"
+    ranked = sorted(counts.items(), key=lambda item: (-item[1], item[0]))[:4]
+    return "；".join(f"{label}（{count}）" for label, count in ranked) + "。"
+
+
 def _selection_context_record(
     context: NeuralAlphaSelectionContext,
 ) -> dict[str, object]:
@@ -35,9 +84,22 @@ def _selection_context_record(
     }
 
 
-def render_weekly_update(edition: WeeklyEdition, score_by_id: dict[str, float]) -> str:
+def render_weekly_update(
+    edition: WeeklyEdition,
+    score_by_id: dict[str, float],
+    *,
+    candidate_count: int,
+    approved_count: int,
+    gate_results: list[dict[str, object]],
+) -> str:
     sections = [
-        f"# AI Weekly · {edition.window_start} — {edition.window_end}",
+        f"# Neural Alpha AI 决策 Brief · {edition.window_start} — {edition.window_end}",
+        "",
+        (
+            f"> 本周评估 {candidate_count} 个候选，{approved_count} 个通过 "
+            f"hard gates，最终选择 {len(edition.topics)} 个主题。"
+        ),
+        f"> 主要淘汰原因：{_render_rejection_summary(gate_results)}",
         "",
         edition.editorial_note,
     ]
@@ -47,100 +109,46 @@ def render_weekly_update(edition: WeeklyEdition, score_by_id: dict[str, float]) 
                 "",
                 f"## {index}. {topic.title}",
                 "",
-                f"**价值：** {topic.one_sentence_value}",
+                f"**核心判断：** {topic.thesis}",
                 "",
                 f"**Evaluation score：** {score_by_id[topic.candidate_id]:.1f}/100",
                 "",
-                "### AI 能力边界发生了什么变化",
+                "**命中的 Neural Alpha priorities：** "
+                + "、".join(f"`{priority_id}`" for priority_id in topic.neural_alpha_priority_ids),
                 "",
-                topic.capability_boundary_change,
+                "### 发生了什么",
                 "",
-                "### 为什么是现在",
+                topic.what_changed,
                 "",
-                topic.why_now,
+                "### 为什么影响 Neural Alpha",
                 "",
-                "### 命中的 Neural Alpha 当前 priorities",
+                topic.why_it_matters,
                 "",
-                *[f"- `{priority_id}`" for priority_id in topic.neural_alpha_priority_ids],
+                "### 建议下一步",
                 "",
-                "### 对 Neural Alpha 的具体 impact chain",
+                topic.recommended_next_step,
                 "",
-                topic.neural_alpha_impact_chain,
-                "",
-                "### Business briefing",
-                "",
-                topic.business_brief,
-                "",
-                "### 决策与行动",
-                "",
-                *[f"- {item}" for item in topic.decision_takeaways],
-                "",
-                "### 接下来观察什么",
+                "### 观察信号",
                 "",
                 *[f"- {item}" for item in topic.what_to_watch],
                 "",
-                "### Caveats",
+                "### Evidence boundary",
                 "",
-                *[f"- {item}" for item in topic.caveats],
+                *[f"- {item}" for item in topic.evidence_boundaries],
                 "",
                 "### Sources",
                 "",
                 _links(topic.source_urls),
             ]
         )
-    return "\n".join(sections).strip() + "\n"
-
-
-def render_video_source(edition: WeeklyEdition, score_by_id: dict[str, float]) -> str:
-    sections = [
-        f"# Remotion Video Source: AI Weekly {edition.window_start} — {edition.window_end}",
-        "",
-        (
-            "本文件只包含通过证据门槛的主题。VideoPlan、OpenAI TTS 旁白与 "
-            "Remotion 画面必须以本文件及 manifest 中的 verified evidence 为边界。"
-        ),
-    ]
-    for index, topic in enumerate(edition.topics, start=1):
-        sections.extend(
-            [
-                "",
-                f"## Topic {index}: {topic.title}",
-                "",
-                f"Evaluation score: {score_by_id[topic.candidate_id]:.1f}/100",
-                "",
-                topic.one_sentence_value,
-                "",
-                "### Capability boundary change",
-                topic.capability_boundary_change,
-                "",
-                "### Why now",
-                topic.why_now,
-                "",
-                "### Neural Alpha priority mapping",
-                *[f"- `{priority_id}`" for priority_id in topic.neural_alpha_priority_ids],
-                "",
-                "### Neural Alpha impact chain",
-                topic.neural_alpha_impact_chain,
-                "",
-                "### Business brief",
-                topic.business_brief,
-                "",
-                "### Decisions and actions",
-                *[f"- {item}" for item in topic.decision_takeaways],
-                "",
-                "### What to watch",
-                *[f"- {item}" for item in topic.what_to_watch],
-                "",
-                "### Evidence limitations",
-                *[f"- {item}" for item in topic.caveats],
-                "",
-                "### Source URLs",
-                _links(topic.source_urls),
-                "",
-                "### Video direction",
-                topic.video_direction,
-            ]
-        )
+    sections.extend(
+        [
+            "",
+            "## 本周组合判断",
+            "",
+            edition.portfolio_judgment,
+        ]
+    )
     return "\n".join(sections).strip() + "\n"
 
 
@@ -160,10 +168,14 @@ def write_outputs(
         item.candidate.candidate_id: item.evaluation.weighted_score for item in approved
     }
     (output_dir / "weekly-update.md").write_text(
-        render_weekly_update(edition, score_by_id), encoding="utf-8"
-    )
-    (output_dir / "video-source.md").write_text(
-        render_video_source(edition, score_by_id), encoding="utf-8"
+        render_weekly_update(
+            edition,
+            score_by_id,
+            candidate_count=len(candidates.candidates),
+            approved_count=len(approved),
+            gate_results=gate_results,
+        ),
+        encoding="utf-8",
     )
     manifest = {
         "edition": edition.model_dump(mode="json"),

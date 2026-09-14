@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "weekly-tech-update"
 version = "0.1.0"
-description = "Context-gated weekly AI intelligence briefing with Remotion video generation"
+description = "Context-gated weekly AI decision brief for Neural Alpha"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -18,7 +18,6 @@ dev = ["pytest>=8.3,<9"]
 
 [project.scripts]
 weekly-tech-update = "weekly_tech_update.cli:main"
-weekly-tech-video = "weekly_tech_update.video_cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/weekly_tech_update"]

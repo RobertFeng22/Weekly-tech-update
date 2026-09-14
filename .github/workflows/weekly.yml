@@ -16,15 +16,10 @@ on:
         default: false
         type: boolean
       max_topics:
-        description: "Maximum approved topics (1-3)"
+        description: "Maximum approved topics (1-2)"
         required: false
-        default: 3
+        default: 2
         type: number
-      research_only:
-        description: "Stop after the approved written edition; skip TTS and video"
-        required: false
-        default: false
-        type: boolean
 
 permissions:
   contents: write
@@ -41,9 +36,6 @@ jobs:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       NEURAL_ALPHA_SELECTION_CONTEXT_JSON: ${{ secrets.NEURAL_ALPHA_SELECTION_CONTEXT_JSON }}
       OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'gpt-5.4' }}
-      OPENAI_VIDEO_MODEL: ${{ vars.OPENAI_VIDEO_MODEL || vars.OPENAI_MODEL || 'gpt-5.4' }}
-      OPENAI_TTS_MODEL: ${{ vars.OPENAI_TTS_MODEL || 'gpt-4o-mini-tts' }}
-      OPENAI_TTS_VOICE: ${{ vars.OPENAI_TTS_VOICE || 'cedar' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -54,23 +46,11 @@ jobs:
           python-version: "3.12"
           cache: pip
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: npm
-
-      - name: Install CJK fonts
-        run: sudo apt-get update && sudo apt-get install -y fonts-noto-cjk
-
       - name: Install
-        run: |
-          pip install '.[dev]'
-          npm ci
+        run: pip install '.[dev]'
 
       - name: Test
-        run: |
-          pytest -q
-          npm run typecheck
+        run: pytest -q
 
       - name: Generate edition
         env:
@@ -84,7 +64,7 @@ jobs:
           fi
           args=(
             --output-root editions
-            --max-topics "${INPUT_MAX_TOPICS:-3}"
+            --max-topics "${INPUT_MAX_TOPICS:-2}"
             --minimum-score 70
           )
           if [[ -n "$INPUT_AS_OF" ]]; then args+=(--as-of "$INPUT_AS_OF"); fi
@@ -110,70 +90,7 @@ jobs:
             git push
           fi
 
-      - name: Generate video plan and OpenAI TTS
-        if: ${{ inputs.research_only != true }}
-        env:
-          INPUT_REGENERATE: ${{ inputs.regenerate_edition }}
-        run: |
-          args=(
-            --edition-dir "$EDITION_DIR"
-            --public-root public
-            --repository "$GITHUB_REPOSITORY"
-          )
-          if [[ "$INPUT_REGENERATE" == "true" ]]; then args+=(--regenerate-plan); fi
-          weekly-tech-video prepare "${args[@]}"
-
-      - name: Render Remotion video
-        if: ${{ inputs.research_only != true }}
-        run: |
-          video_path="$EDITION_DIR/ai-weekly-$EDITION_DATE-zh.mp4"
-          npm run render:video -- \
-            "$video_path" \
-            --props="$EDITION_DIR/remotion-props.json" \
-            --codec=h264 \
-            --crf=18 \
-            --audio-bitrate=192k \
-            --concurrency=1 \
-            --log=error
-          echo "VIDEO_PATH=$video_path" >> "$GITHUB_ENV"
-
-      - name: Finalize video metadata and link
-        if: ${{ inputs.research_only != true }}
-        run: |
-          weekly-tech-video finalize \
-            --edition-dir "$EDITION_DIR" \
-            --video-path "$VIDEO_PATH" \
-            --repository "$GITHUB_REPOSITORY"
-
-      - name: Commit video metadata
-        if: ${{ inputs.research_only != true }}
-        run: |
-          git config user.name "weekly-tech-update[bot]"
-          git config user.email "weekly-tech-update[bot]@users.noreply.github.com"
-          git add editions
-          if git diff --cached --quiet; then
-            echo "No new edition to commit"
-          else
-            git commit -m "weekly: AI update $(date -u +%F)"
-            git push
-          fi
-
-      - name: Publish teaching video release
-        if: ${{ inputs.research_only != true }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          tag="weekly-$EDITION_DATE"
-          if gh release view "$tag" >/dev/null 2>&1; then
-            gh release upload "$tag" "$VIDEO_PATH" --clobber
-          else
-            gh release create "$tag" "$VIDEO_PATH" \
-              --target main \
-              --title "AI Weekly · $EDITION_DATE" \
-              --notes "Source-grounded weekly AI teaching video. Narration is AI-generated."
-          fi
-
-      - name: Upload edition and video artifact
+      - name: Upload edition artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:

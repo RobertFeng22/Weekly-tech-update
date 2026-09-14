@@ -11,22 +11,30 @@ from weekly_tech_update.models import (
     Candidate,
     CandidateBatch,
     Category,
+    EvaluatedCandidate,
     Evaluation,
     EvaluationBatch,
     ImpactType,
     NeuralAlphaPriorityId,
-    VideoPlan,
+    NeuralAlphaSelectionContext,
+    Topic,
+    WeeklyBrief,
     WeeklyEdition,
 )
 from weekly_tech_update.pipeline import (
     PipelineConfig,
     apply_hard_gates,
+    build_editor_shortlist,
     gate_rejection_reasons,
     load_selection_context,
     validate_selection_context_freshness,
     weekly_window,
 )
-from weekly_tech_update.render import write_failure_audit
+from weekly_tech_update.render import (
+    render_weekly_update,
+    write_failure_audit,
+    write_outputs,
+)
 
 
 CONTEXT_FIXTURE = Path("config/neural-alpha-selection-context.example.json")
@@ -263,13 +271,58 @@ def test_evaluator_cannot_validate_a_different_priority_than_the_candidate():
     assert "no_validated_current_priority_match" in reasons
 
 
-def test_max_topics_cannot_exceed_three():
-    try:
-        PipelineConfig(max_topics=4)
-    except ValueError as exc:
-        assert "max_topics" in str(exc)
-    else:
-        raise AssertionError("expected max_topics validation to fail")
+def test_max_topics_cannot_exceed_two():
+    with pytest.raises(ValueError, match="max_topics"):
+        PipelineConfig(max_topics=3)
+
+
+def test_editor_shortlist_preserves_distinct_priority_coverage():
+    payload = load_selection_context(CONTEXT_FIXTURE).model_dump(mode="json")
+    payload["priorities"].append(
+        {
+            "priority_id": NeuralAlphaPriorityId.EXPECTATION_REPRICING,
+            "label": "Expectation and priced-in assessment",
+            "status": "active",
+            "weight": 5,
+            "current_state": (
+                "The current process needs reproducible expectation-state records."
+            ),
+            "current_need": (
+                "Find external evidence that improves priced-in assessment decisions."
+            ),
+            "high_value_signals": ["A falsifiable expectation-state evaluation"],
+            "false_friends": ["Generic market commentary"],
+        }
+    )
+    context = NeuralAlphaSelectionContext.model_validate(payload)
+    agent_items = [
+        EvaluatedCandidate(
+            candidate=candidate(candidate_id=f"agent-{index}"),
+            evaluation=evaluation(candidate_id=f"agent-{index}"),
+        )
+        for index in range(1, 4)
+    ]
+    expectation_item = EvaluatedCandidate(
+        candidate=candidate(
+            candidate_id="expectation-1",
+            relevance_paths=[relevance_path(NeuralAlphaPriorityId.EXPECTATION_REPRICING)],
+        ),
+        evaluation=evaluation(
+            candidate_id="expectation-1",
+            validated_priority_ids=[NeuralAlphaPriorityId.EXPECTATION_REPRICING],
+        ),
+    )
+    shortlist = build_editor_shortlist(
+        [*agent_items, expectation_item],
+        max_topics=1,
+        selection_context=context,
+        minimum_priority_weight=4,
+    )
+    assert [item.candidate.candidate_id for item in shortlist] == [
+        "agent-1",
+        "expectation-1",
+        "agent-2",
+    ]
 
 
 def test_audience_fit_thresholds_must_be_valid_scores():
@@ -341,7 +394,7 @@ def test_failure_audit_freezes_selection_context_version_and_hash(tmp_path):
 
 
 def test_openai_response_schemas_do_not_emit_unsupported_uri_format():
-    for schema_type in (CandidateBatch, EvaluationBatch, WeeklyEdition, VideoPlan):
+    for schema_type in (CandidateBatch, EvaluationBatch, WeeklyBrief):
         schema_json = json.dumps(schema_type.model_json_schema())
         assert '"format": "uri"' not in schema_json
 
@@ -378,3 +431,83 @@ def test_gate_rejection_reasons_are_auditable():
         "insufficient_verified_sources",
         "unresolved_red_flags",
     ]
+
+
+def brief_edition() -> WeeklyEdition:
+    return WeeklyEdition(
+        window_start=date(2026, 8, 17),
+        window_end=date(2026, 8, 23),
+        editorial_note=(
+            "本期只保留了能映射到当前 Neural Alpha 决策、且通过来源复核与反证检查的进展。"
+        ),
+        topics=[
+            Topic(
+                candidate_id="item-1",
+                title="Agent evaluation 揭示新的控制边界",
+                category=Category.CAPABILITY,
+                thesis="这项证据改变了长时程 agent 应该如何被授权和评估。",
+                neural_alpha_priority_ids=[NeuralAlphaPriorityId.AGENTIC_RESEARCH],
+                what_changed=(
+                    "此前可以把短任务成功率外推到长时程自治；新证据显示，任务延长后人工干预仍是结构性要求。"
+                ),
+                why_it_matters=(
+                    "Neural Alpha 的事件研究需要高吞吐，也需要来源可追溯和明确接管点。"
+                    "这项变化意味着 MAS 应按 task horizon 和 side-effect class 分层，"
+                    "而不是把所有研究链路交给同一种自治策略。"
+                ),
+                recommended_next_step=(
+                    "用冻结事件包比较 intervention-gated workflow 与 fully autonomous run，"
+                    "记录完成率、事实错误率和引用完整性。"
+                ),
+                what_to_watch=["长时程任务的 intervention rate 是否持续下降"],
+                evidence_boundaries=["当前证据来自单一实验室，不能直接外推到金融研究"],
+                source_urls=["https://example.com/primary"],
+            )
+        ],
+        portfolio_judgment=(
+            "本期主题集中在 agentic research control；这种集中由本周通过门槛的证据决定，"
+            "但 event intelligence 与 priced-in assessment 没有找到达标的窗口内进展。"
+        ),
+    )
+
+
+def test_written_brief_surfaces_funnel_actions_and_coverage_gap():
+    text = render_weekly_update(
+        brief_edition(),
+        {"item-1": 88.2},
+        candidate_count=4,
+        approved_count=1,
+        gate_results=[
+            {"candidate_id": "item-1", "approved": True, "rejection_reasons": []},
+            {
+                "candidate_id": "item-2",
+                "approved": False,
+                "rejection_reasons": ["generic_relevance_only"],
+            },
+        ],
+    )
+    assert "本周评估 4 个候选，1 个通过 hard gates" in text
+    assert "与 Neural Alpha 只有泛相关（1）" in text
+    assert "### 建议下一步" in text
+    assert "## 本周组合判断" in text
+    assert "video" not in text.lower()
+
+
+def test_outputs_are_brief_and_audit_only(tmp_path: Path):
+    context = load_selection_context(CONTEXT_FIXTURE)
+    item = EvaluatedCandidate(candidate=candidate(), evaluation=evaluation())
+    write_outputs(
+        tmp_path,
+        edition=brief_edition(),
+        candidates=CandidateBatch(candidates=[item.candidate]),
+        evaluations=EvaluationBatch(evaluations=[item.evaluation]),
+        approved=[item],
+        gate_results=[
+            {"candidate_id": "item-1", "approved": True, "rejection_reasons": []}
+        ],
+        config=PipelineConfig(),
+        selection_context=context,
+    )
+    assert (tmp_path / "weekly-update.md").exists()
+    assert (tmp_path / "manifest.json").exists()
+    assert not (tmp_path / "video-source.md").exists()

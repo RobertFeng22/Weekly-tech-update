@@ -1,113 +1,100 @@
-# Weekly AI Intelligence Briefing
+# Neural Alpha Weekly AI Decision Brief
 
-每周自动研究最近 7 个完整自然日内的 AI 进展，但不是做泛行业新闻摘要。项目使用一个由 Neural Alpha Obsidian 战略与架构记录提炼、经审阅的 private versioned context snapshot，把外部进展映射到当前 strategy、architecture、evaluation、risk、data 或 investment decision。目标读者是偏 business / investment 的 founder，不假设读者日常写模型或使用 PyTorch。
+每周自动研究最近 7 个完整自然日内的 AI 进展，并输出一份面向 Neural Alpha 的书面决策 brief。它不是泛行业新闻摘要，也不再生成视频。目标读者是偏 business / investment 的 founder；每期最多保留 2 个真正可能改变 strategy、architecture、evaluation、risk、data 或 investment decision 的主题。
 
-经过独立核验和受众适配硬门槛后，每期只保留最多 3 个主题；随后用 OpenAI TTS 生成中文旁白，由 Remotion 渲染为视频，并通过 GitHub Release 提供稳定链接。宁可只有 1 个重要主题，也不为了周更凑满 3 个。
+宁可只有 1 个主题，甚至因没有内容通过门槛而失败，也不为周更凑数。
 
 ## Pipeline
 
-研究和视频是两段独立、可审计的流水线：
-
-1. **Context snapshot**：本地使用被 Git 忽略的 `.local/neural-alpha-selection-context.json`，GitHub Actions 使用 encrypted secret `NEURAL_ALPHA_SELECTION_CONTEXT_JSON`。它保存从 Obsidian 定向提炼、经审阅的 fund identity、strategy wedge、active priorities、current constraints、high-value signals 和 false friends；超过 60 天未更新时 fail closed。公开的 `config/neural-alpha-selection-context.example.json` 只定义 schema 和示例，不含 Neural Alpha context。
-2. **Scout**：使用 Responses API 的 `web_search` 搜集 8–15 个候选。每个候选必须选择一个 admission mode，并完成 `当前约束 → 外部变化 → 传导机制 → decision/test` 的结构化 relevance path。
-3. **Evaluator**：重新打开来源并主动搜索反证；外部来源验证 AI 进展，context snapshot 独立验证 Neural Alpha 相关性，二者不能互相替代。
-4. **Hard gates**：代码检查来源、日期、admission route、validated priority intersection、current-priority relevance、strategy/architecture impact、impact-chain quality、decision value 和总分。
-5. **Editor**：只能从通过全部 gate 的候选中选择最多 3 个主题；两个主题若导向同一个 decision/test，原则上只保留证据更强的一个。
-6. **Video director**：把 approved edition 转换为 8–14 个 source-grounded 场景，重点解释 Neural Alpha 当前 blocker、变化机制、内部 evaluation、二阶影响和 evidence boundary。
-7. **OpenAI TTS + Remotion**：按场景生成中文 WAV，以真实音频时长渲染 1080p H.264 MP4。
+1. **Context snapshot**：本地使用被 Git 忽略的 `.local/neural-alpha-selection-context.json`，GitHub Actions 使用 encrypted secret `NEURAL_ALPHA_SELECTION_CONTEXT_JSON`。它保存从 Neural Alpha 的 Obsidian/Notion strategy 与 architecture 记录中定向提炼、经审阅的 fund identity、strategy wedge、active priorities、current constraints、high-value signals 和 false friends；超过 60 天未更新时 fail closed。公开的 `config/neural-alpha-selection-context.example.json` 只定义 schema 与示例，不包含 Neural Alpha 私有 context。
+2. **Scout**：使用 OpenAI Responses API 的 `web_search` 搜集候选。每个候选必须选择一个 admission route，并完成 `当前约束 → 外部变化 → 传导机制 → decision/test` 的 relevance path。
+3. **Evaluator**：重新打开来源并主动搜索反证。外部来源验证 AI 进展；private context 独立验证 Neural Alpha 相关性，二者不能互相替代。
+4. **Hard gates**：代码检查日期、来源、primary-source 复核、admission route、当前 priority 命中、strategy/architecture impact、relevance-path quality、decision value、red flags 与总分。
+5. **Editor**：只能从通过全部 gates 的候选中选择最多 2 个主题。若两个主题导向相同 decision/test，除非证据冲突或需要不同 control，否则只保留更强的一项。
+6. **Brief renderer**：生成结构稳定的 Markdown brief，并附上候选数、通过数、主要淘汰原因、每个主题的行动建议，以及对主题集中度和 coverage gap 的组合判断。
 
 三条 admission route：
 
-- `frontier_shift`：AI capability、reliability、economics、control 或 deployability 边界显著移动，要求 `frontier_significance >= 4/5`；
+- `frontier_shift`：AI capability、reliability、economics、control 或 deployability 的边界显著移动，要求 `frontier_significance >= 4/5`；
 - `direct_build_leverage`：新方法可直接降低一个 active strategy/architecture blocker 的验证成本，要求 `transfer_readiness >= 4/5`；
 - `strategic_constraint_or_threat`：data rights、security、policy、platform 或 market structure 变化会迫使计划改变，要求 `strategic_magnitude >= 4/5`。
 
-无论走哪条 route，都必须满足：通常至少两个经核验来源；primary source 被重新确认；`factual_accuracy >= 4/5`、`evidence_strength >= 3/5`、`current_priority_relevance >= 4/5`、`max(strategy_impact, architecture_impact) >= 4/5`、`relevance_path_quality >= 4/5`、`business_decision_value >= 3/5`、总分 `>= 70/100`；candidate 和 evaluator 的 priority IDs 必须与 context 中 `active + weight >= 4` 的 priority 相交。若一个完整 authoritative primary artifact 足以直接证明被严格限定的发布事实，evaluator 可显式设置 `authoritative_primary_sufficient=true`，但此时 `factual_accuracy` 和 `evidence_strength` 都必须至少 4/5；该例外不能用于 performance、safety、generalization、transfer 或 independent-reproduction claim。Evaluator 若判定 `engineering_only` 或 `generic_relevance_only`，直接 block。任何未解决的 `red_flags` 也会淘汰候选。没有内容达标时任务会失败，不会凑数。
+无论走哪条 route，通常都要有至少两个经核验来源，且 primary source 必须被重新确认；同时满足 `factual_accuracy >= 4/5`、`evidence_strength >= 3/5`、`current_priority_relevance >= 4/5`、`max(strategy_impact, architecture_impact) >= 4/5`、`relevance_path_quality >= 4/5`、`business_decision_value >= 3/5` 和总分 `>= 70/100`。Candidate 与 evaluator 的 priority IDs 还必须和 context 中 `active + weight >= 4` 的 priorities 相交。
 
-普通 PyTorch / SDK / serving 更新、泛 productivity、generic sentiment、融资新闻和“AI 将改变金融”这类叙事，即使是大公司发布，也不会因为流行度或宽泛 finance use case 获得相关性分数。
+若一个完整 authoritative primary artifact 足以直接证明被严格限定的发布事实，evaluator 可以设置 `authoritative_primary_sufficient=true`；该例外不能替代 performance、safety、generalization、transfer 或 independent-reproduction 的证据。`engineering_only`、`generic_relevance_only` 或任何未解决的 `red_flags` 都会直接淘汰候选。
+
+普通 PyTorch / SDK / serving 更新、泛 productivity、generic sentiment、融资新闻和“AI 将改变金融”叙事，不会因为流行度或宽泛 finance use case 获得相关性分数。
+
+## Brief 格式
+
+每期的 `weekly-update.md` 固定包含：
+
+- 本周候选数、hard-gate 通过数和主要淘汰原因；
+- 每个主题的核心判断、evaluation score 与命中的 Neural Alpha priorities；
+- `发生了什么`：此前边界与本周新证据；
+- `为什么影响 Neural Alpha`：具体 transmission mechanism 和二阶影响；
+- `建议下一步`：一个 bounded internal evaluation、decision、control change 或 watch trigger；
+- 观察信号、evidence boundary 和 sources；
+- `本周组合判断`：明确主题是否过度集中，以及哪些当前高权重 priorities 没有找到达标证据。
+
+Editor 的可发布字段使用中文，但保留必要的 English technical terms。Private context 只参与 selection 与 relevance validation，不得被逐字复述到公开 brief。
 
 ## Neural Alpha context 的隐私与更新
 
-GitHub Actions 无法读取 Robert 本地的 Obsidian，而且仓库是公开的。因此实际 snapshot 不进入 Git：本地文件被 `.gitignore` 排除，远程 workflow 通过 GitHub encrypted secret 注入，程序不会打印 secret。每次方向发生实质变化时，应从 Obsidian 定向更新 snapshot 的 `as_of`、priority status、current state 和 current need；超过 60 天未更新会 fail closed。每期 manifest 只记录 context 的 version、`as_of` 与 SHA-256，不保存正文，既能证明当时使用了哪个版本，也不会把 private context 写入公开 artifact。
+GitHub Actions 无法读取本地 Obsidian，而且仓库是公开的，因此实际 snapshot 不进入 Git：本地文件由 `.gitignore` 排除，远程 workflow 通过 GitHub encrypted secret 注入，程序不会打印 secret。每次 strategy 或 architecture 方向发生实质变化时，应更新 snapshot 的 `as_of`、priority status、current state 与 current need；超过 60 天未更新会 fail closed。
 
-Snapshot 本身也应遵守最小披露：不要包含 credentials、capital amounts、counterparties、private datasets 或不需要进入模型 prompt 的 proprietary implementation。由于 `weekly-update.md` 和视频目前会发布到公开 GitHub Release，prompt 要求使用 context 做内部筛选，但不得逐字复述 private current state/current need；发布前仍应抽查是否包含不应公开的内部信息。
+每期 `manifest.json` 只记录 context 的 version、`as_of` 与 SHA-256，不保存正文。Snapshot 不应包含 credentials、capital amounts、counterparties、private datasets 或不需要进入模型 prompt 的 proprietary implementation。仓库公开，因此仍应在发布前抽查 brief 是否包含不应公开的内部信息。
 
 ## 每期产物
 
 每期写入 `editions/YYYY-MM-DD/`：
 
-- `weekly-update.md`：给人阅读的 AI frontier briefing，渲染完成后包含视频链接；
-- `video-source.md`：只包含通过 evidence gate 的视频事实边界；
-- `manifest.json`：候选、评分、门槛和模型配置的研究审计记录；
-- `video-plan.json`：Video director 生成的结构化旁白与场景设计；
-- `remotion-props.json`：带真实音频时长的 Remotion 时间轴；
-- `video-manifest.json`：TTS 模型、voice、视频时长、SHA-256 和 Release URL。
+- `weekly-update.md`：给 Robert 阅读的双主题 AI decision brief；
+- `manifest.json`：候选、evaluation、hard-gate 结果、模型配置与 selection-context fingerprint，便于审计和重放；
+- `failed-run-manifest.json`：没有候选通过时的失败审计记录。
 
-WAV 与 MP4 不进入 Git 历史。Workflow 会把 MP4 上传到 `weekly-YYYY-MM-DD` GitHub Release，并把同一文件保留为 30 天 Actions artifact。公开视频链接格式为：
-
-```text
-https://github.com/RobertFeng22/Weekly-tech-update/releases/download/weekly-YYYY-MM-DD/ai-weekly-YYYY-MM-DD-zh.mp4
-```
-
-视频中会持续显示 AI voice disclosure；旁白不是人类录音。
+历史 edition 中的 NotebookLM、Remotion、TTS 与 MP4 文件会保留为旧记录，但新的 workflow 不会再创建或发布视频资产。
 
 ## 每周执行
 
-[GitHub Actions workflow](.github/workflows/weekly.yml) 在每周一 **08:00 Asia/Singapore**（UTC 周一 00:00）执行，也支持手动触发。手动触发时可设置 `as_of` 和 `max_topics`；若只想评审选题，可勾选 `research_only` 跳过 TTS、Remotion 和 Release。若同一日期已经存在，勾选 `regenerate_edition` 才会按当前筛选逻辑重做周报、video plan 和旁白。首次运行前，在仓库 **Settings → Secrets and variables → Actions** 添加：
+[GitHub Actions workflow](.github/workflows/weekly.yml) 在每周一 **08:00 Asia/Singapore**（UTC 周一 00:00）执行，也支持手动触发。手动触发可以设置 `as_of`、`max_topics`（1–2）与 `regenerate_edition`。首次运行前，在仓库 **Settings → Secrets and variables → Actions** 添加：
 
 - Secret `OPENAI_API_KEY`（必需）；
-- Secret `NEURAL_ALPHA_SELECTION_CONTEXT_JSON`（必需；完整 JSON，不要放在 repo、Variable 或 workflow log 中）；
-- Variable `OPENAI_MODEL`（可选，默认 `gpt-5.4`）；
-- Variable `OPENAI_VIDEO_MODEL`（可选，默认继承 `OPENAI_MODEL`）；
-- Variable `OPENAI_TTS_MODEL`（可选，默认 `gpt-4o-mini-tts`）；
-- Variable `OPENAI_TTS_VOICE`（可选，默认 `cedar`）。
+- Secret `NEURAL_ALPHA_SELECTION_CONTEXT_JSON`（必需；完整 JSON，不要放进 repo、Variable 或 workflow log）；
+- Variable `OPENAI_MODEL`（可选，默认 `gpt-5.4`）。
 
-Workflow 会安装 Python、Node.js、Remotion 和 Noto CJK font，依次测试、研究、持久化已批准的 edition、生成 TTS、渲染、写回视频 metadata，并发布视频 Release。研究结果会在耗时的视频阶段之前提交，所以后续渲染失败不会丢失 selection audit。默认分支若开启保护，需要允许 GitHub Actions 写入，或把 commit step 改为创建 PR。
+Workflow 只安装 Python dependencies，执行测试与完整研究流程，将通过筛选的 edition commit 到默认分支，并保留 30 天 Actions artifact。默认分支若开启保护，需要允许 GitHub Actions 写入，或把 commit step 改为创建 PR。
 
 ## 本地运行
 
-要求 Python 3.11+、Node.js 22+，以及能渲染中文的 CJK font。
+要求 Python 3.11+：
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -e '.[dev]'
-npm ci
 
 export OPENAI_API_KEY='...'
 
 mkdir -p .local
 cp config/neural-alpha-selection-context.example.json \
   .local/neural-alpha-selection-context.json
-# Edit the ignored local file using the current, reviewed Obsidian context.
+# 用当前、经审阅的 Neural Alpha context 修改这个被 Git 忽略的本地文件。
 
-EDITION_DIR=$(weekly-tech-update --as-of 2026-08-26 --output-root editions)
-weekly-tech-video prepare \
-  --edition-dir "$EDITION_DIR" \
-  --public-root public \
-  --repository RobertFeng22/Weekly-tech-update
-
-npm run render:video -- \
-  "$EDITION_DIR/ai-weekly-2026-08-26-zh.mp4" \
-  --props="$EDITION_DIR/remotion-props.json" \
-  --codec=h264 --crf=18 --audio-bitrate=192k
-
-weekly-tech-video finalize \
-  --edition-dir "$EDITION_DIR" \
-  --video-path "$EDITION_DIR/ai-weekly-2026-08-26-zh.mp4" \
-  --repository RobertFeng22/Weekly-tech-update
+weekly-tech-update \
+  --as-of 2026-09-14 \
+  --output-root editions \
+  --max-topics 2
 ```
 
-`--as-of` 的研究窗口是它之前的 7 个完整自然日；例如 `2026-08-26` 会研究 `2026-08-19` 至 `2026-08-25`。
-
-如果只想调整动效，可以运行 `npm run studio`，打开 `WeeklyAI` composition，并载入某期 `remotion-props.json`。如果希望复用已有 `video-plan.json`，再次执行 `prepare` 即可；只有显式添加 `--regenerate-plan` 才会重写场景与旁白。
+`--as-of` 的研究窗口是它之前的 7 个完整自然日；例如 `2026-09-14` 会研究 `2026-09-07` 至 `2026-09-13`。
 
 ## 质量边界
 
-- Video director 无 web access，只能使用 approved edition，避免在视频阶段扩展事实。
-- 每个 topic 必须保留 evaluator 验证过的 Neural Alpha priority IDs，并说明当前约束、已验证变化、传导机制、decision/test 和后续观察信号；editor 不得引入新的 priority mapping。视频至少包含 problem、mechanism，以及 decision scenario 或 evidence/limits 场景。未知 `topic_id` 会 fail closed。
-- TTS 使用 OpenAI Audio API 的 `gpt-4o-mini-tts`；模型和 voice 都记录在 `video-manifest.json`。
-- 字幕按旁白标点切片并映射到真实音频时长。它不是 word-level forced alignment，因此发布前仍应抽查字幕切换、专有名词读音和事实表达。
-- Remotion 负责信息图与动画，不伪造产品 UI 或未经来源支持的 benchmark 图表。
+- Scout 与 evaluator 可以使用 web search；editor 无 web access，只能使用 approved candidates、evaluations 与 versioned context。
+- Brief 不能引入新的 source URL、candidate 或 priority mapping；runtime 会用 allowlist 复核。
+- `portfolio_judgment` 必须披露主题集中度和未覆盖的 active priority，不能把“本周没有达标证据”写成“该方向没有进展”。
+- 没有候选通过时，workflow 会保留 failure audit 并失败，不生成空 brief。
+- Responses API 使用 structured output 约束每个阶段的 schema，并设置 `store=False`。
 
-OpenAI TTS 用法以 [official OpenAI Text-to-Speech documentation](https://developers.openai.com/api/docs/guides/text-to-speech) 为准；Remotion 的 [render](https://www.remotion.dev/docs/render)、[audio](https://www.remotion.dev/docs/audio/importing) 与 [GitHub Actions SSR](https://www.remotion.dev/docs/ssr) 文档是渲染实现依据。
+OpenAI API 的实现以 [official Responses API documentation](https://developers.openai.com/api/reference/cli/resources/responses/methods/create) 为准。

@@ -132,22 +132,6 @@ class RelevancePath(BaseModel):
     decision_or_test: str = Field(min_length=40, max_length=500)
 
 
-class VideoSceneKind(StrEnum):
-    INTRO = "intro"
-    FUNNEL = "evaluation_funnel"
-    PROBLEM = "problem"
-    MECHANISM = "mechanism"
-    DEMO = "demo"
-    EVIDENCE = "evidence_and_limits"
-    DECISION = "decision_guide"
-
-
-class VideoAccent(StrEnum):
-    CYAN = "cyan"
-    VIOLET = "violet"
-    AMBER = "amber"
-
-
 class Candidate(BaseModel):
     candidate_id: str = Field(min_length=1, max_length=80)
     title: str = Field(min_length=4, max_length=180)
@@ -317,70 +301,75 @@ class Topic(BaseModel):
     candidate_id: str
     title: str = Field(min_length=4, max_length=180)
     category: Category
-    one_sentence_value: str = Field(min_length=20)
-    why_now: str = Field(min_length=40)
-    capability_boundary_change: str = Field(min_length=40)
+    thesis: str = Field(min_length=20, max_length=240)
     neural_alpha_priority_ids: list[NeuralAlphaPriorityId] = Field(
         min_length=1, max_length=3
     )
-    neural_alpha_impact_chain: str = Field(min_length=100)
-    business_brief: str = Field(min_length=200)
-    decision_takeaways: list[str] = Field(min_length=2, max_length=8)
-    what_to_watch: list[str] = Field(min_length=2, max_length=8)
-    caveats: list[str] = Field(min_length=1, max_length=8)
+    what_changed: str = Field(min_length=40, max_length=700)
+    why_it_matters: str = Field(min_length=80, max_length=900)
+    recommended_next_step: str = Field(min_length=20, max_length=500)
+    what_to_watch: list[str] = Field(min_length=1, max_length=4)
+    evidence_boundaries: list[str] = Field(min_length=1, max_length=4)
     source_urls: list[SourceUrl] = Field(min_length=1, max_length=10)
-    video_direction: str = Field(min_length=80)
 
     @model_validator(mode="before")
     @classmethod
-    def migrate_engineering_brief_topic(cls, value: object) -> object:
+    def migrate_historical_topic(cls, value: object) -> object:
         if not isinstance(value, dict):
             return value
         payload = dict(value)
         lesson = payload.get("lesson") or payload.get("why_now") or ""
-        payload.setdefault("capability_boundary_change", lesson)
-        payload.setdefault(
-            "neural_alpha_impact_chain",
-            " ".join(
-                part
-                for part in [
-                    payload.get("one_sentence_value"),
-                    payload.get("why_now"),
-                    payload.get("ai_native_fund_impact"),
-                ]
-                if isinstance(part, str)
-            ),
-        )
+        payload.setdefault("thesis", payload.get("one_sentence_value") or lesson)
         payload.setdefault(
             "neural_alpha_priority_ids", [NeuralAlphaPriorityId.AGENTIC_RESEARCH]
         )
-        payload.setdefault("business_brief", lesson)
         payload.setdefault(
-            "decision_takeaways",
-            payload.get("hands_on_demo") or ["Review the implication", "Define a test"],
+            "what_changed", payload.get("capability_boundary_change") or lesson
         )
         payload.setdefault(
-            "video_direction",
-            (
-                "Historical edition predates the structured video-direction field. "
-                "Preserve its approved facts and caveats without adding new claims; "
-                "use a plain evidence-and-decision visual treatment."
-            ),
+            "why_it_matters",
+            payload.get("business_brief")
+            or payload.get("neural_alpha_impact_chain")
+            or payload.get("ai_native_fund_impact")
+            or lesson,
+        )
+        legacy_actions = payload.get("decision_takeaways") or payload.get(
+            "hands_on_demo"
+        )
+        payload.setdefault(
+            "recommended_next_step",
+            "；".join(legacy_actions)[:500]
+            if isinstance(legacy_actions, list) and legacy_actions
+            else "Review the implication and define a bounded internal test.",
         )
         watch_items = [
             *payload.get("when_to_use", []),
             *payload.get("when_not_to_use", []),
             *payload.get("caveats", []),
         ]
-        payload.setdefault("what_to_watch", watch_items[:8] or ["Evidence", "Adoption"])
+        payload.setdefault("what_to_watch", watch_items[:4] or ["Evidence", "Adoption"])
+        payload.setdefault(
+            "evidence_boundaries",
+            payload.get("caveats") or ["Historical evidence boundary was not structured."],
+        )
         return payload
 
 
 class WeeklyEdition(BaseModel):
     window_start: date
     window_end: date
-    editorial_note: str = Field(min_length=40)
+    editorial_note: str = Field(min_length=40, max_length=600)
     topics: list[Topic] = Field(min_length=1, max_length=3)
+    portfolio_judgment: str = Field(min_length=40, max_length=700)
+
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_historical_edition(cls, value: object) -> object:
+        if not isinstance(value, dict):
+            return value
+        payload = dict(value)
+        payload.setdefault("portfolio_judgment", payload.get("editorial_note"))
+        return payload
 
     @model_validator(mode="after")
     def ensure_topic_ids_are_unique(self) -> "WeeklyEdition":
@@ -390,37 +379,10 @@ class WeeklyEdition(BaseModel):
         return self
 
 
-class VideoScene(BaseModel):
-    scene_id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]{1,63}$")
-    topic_id: str | None = None
-    kind: VideoSceneKind
-    accent: VideoAccent
-    eyebrow: str = Field(min_length=2, max_length=48)
-    title: str = Field(min_length=4, max_length=96)
-    subtitle: str = Field(min_length=10, max_length=180)
-    narration: str = Field(min_length=120, max_length=480)
-    on_screen_points: list[str] = Field(min_length=1, max_length=4)
-    visual_labels: list[str] = Field(default_factory=list, max_length=6)
+class WeeklyBrief(WeeklyEdition):
+    """Current publishable schema; WeeklyEdition keeps older manifests readable."""
 
-
-class VideoPlan(BaseModel):
-    window_start: date
-    window_end: date
-    title: str = Field(min_length=4, max_length=80)
-    subtitle: str = Field(min_length=10, max_length=160)
-    disclosure: str = Field(min_length=20, max_length=100)
-    scenes: list[VideoScene] = Field(min_length=8, max_length=16)
-
-    @model_validator(mode="after")
-    def ensure_scene_structure(self) -> "VideoPlan":
-        scene_ids = [scene.scene_id for scene in self.scenes]
-        if len(scene_ids) != len(set(scene_ids)):
-            raise ValueError("video plan contains duplicate scene IDs")
-        if self.scenes[0].kind is not VideoSceneKind.INTRO:
-            raise ValueError("video plan must start with an intro scene")
-        if self.scenes[-1].kind is not VideoSceneKind.DECISION:
-            raise ValueError("video plan must end with a decision guide")
-        return self
+    topics: list[Topic] = Field(min_length=1, max_length=2)
 
 
 class EvaluatedCandidate(BaseModel):

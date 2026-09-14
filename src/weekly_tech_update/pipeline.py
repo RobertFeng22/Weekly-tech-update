@@ -18,6 +18,7 @@ from .models import (
     EvaluationBatch,
     NeuralAlphaPriorityId,
     NeuralAlphaSelectionContext,
+    WeeklyBrief,
     WeeklyEdition,
 )
 from .prompts import DISCOVERY_INSTRUCTIONS, EDITOR_INSTRUCTIONS, EVALUATION_INSTRUCTIONS
@@ -28,13 +29,13 @@ SchemaT = TypeVar("SchemaT", bound=BaseModel)
 
 @dataclass(frozen=True)
 class PipelineConfig:
-    selection_profile: str = "neural_alpha_contextual_intelligence_v2"
+    selection_profile: str = "neural_alpha_contextual_decision_brief_v3"
     discovery_model: str = "gpt-5.4"
     evaluation_model: str = "gpt-5.4"
     editor_model: str = "gpt-5.4"
     discovery_max_tool_calls: int = 24
     evaluation_max_tool_calls: int = 40
-    max_topics: int = 3
+    max_topics: int = 2
     minimum_score: float = 70.0
     minimum_verified_sources: int = 2
     minimum_frontier_significance: int = 4
@@ -48,8 +49,8 @@ class PipelineConfig:
     maximum_context_age_days: int = 60
 
     def __post_init__(self) -> None:
-        if not 1 <= self.max_topics <= 3:
-            raise ValueError("max_topics must be between 1 and 3")
+        if not 1 <= self.max_topics <= 2:
+            raise ValueError("max_topics must be between 1 and 2")
         for field_name in (
             "minimum_frontier_significance",
             "minimum_current_priority_relevance",
@@ -145,6 +146,54 @@ def apply_hard_gates(
         assert evaluation is not None
         approved.append(EvaluatedCandidate(candidate=candidate, evaluation=evaluation))
     return sorted(approved, key=lambda item: item.evaluation.weighted_score, reverse=True)
+
+
+def _matched_priority_ids(
+    item: EvaluatedCandidate,
+    *,
+    selection_context: NeuralAlphaSelectionContext,
+    minimum_priority_weight: int,
+) -> set[NeuralAlphaPriorityId]:
+    return (
+        {path.priority_id for path in item.candidate.relevance_paths}
+        & set(item.evaluation.validated_priority_ids)
+        & selection_context.eligible_priority_ids(minimum_priority_weight)
+    )
+
+
+def build_editor_shortlist(
+    approved: list[EvaluatedCandidate],
+    *,
+    max_topics: int,
+    selection_context: NeuralAlphaSelectionContext,
+    minimum_priority_weight: int,
+) -> list[EvaluatedCandidate]:
+    """Give the editor high-scoring choices without hiding priority coverage."""
+    budget = min(len(approved), max_topics * 3)
+    shortlist: list[EvaluatedCandidate] = []
+    selected_ids: set[str] = set()
+    covered_priorities: set[NeuralAlphaPriorityId] = set()
+
+    for item in approved:
+        matched = _matched_priority_ids(
+            item,
+            selection_context=selection_context,
+            minimum_priority_weight=minimum_priority_weight,
+        )
+        if matched - covered_priorities:
+            shortlist.append(item)
+            selected_ids.add(item.candidate.candidate_id)
+            covered_priorities.update(matched)
+        if len(shortlist) == budget:
+            return shortlist
+
+    for item in approved:
+        if item.candidate.candidate_id in selected_ids:
+            continue
+        shortlist.append(item)
+        if len(shortlist) == budget:
+            break
+    return shortlist
 
 
 def gate_rejection_reasons(
@@ -355,9 +404,37 @@ class WeeklyPipeline:
         window_start: date,
         window_end: date,
     ) -> WeeklyEdition:
-        shortlist = approved[: max(self.config.max_topics * 2, self.config.max_topics)]
+        shortlist = build_editor_shortlist(
+            approved,
+            max_topics=self.config.max_topics,
+            selection_context=self.selection_context,
+            minimum_priority_weight=self.config.minimum_priority_weight,
+        )
         if not shortlist:
             raise RuntimeError("no candidate passed the evidence and Neural Alpha gates")
+        eligible_priority_ids = self.selection_context.eligible_priority_ids(
+            self.config.minimum_priority_weight
+        )
+        approved_priority_ids = set().union(
+            *(
+                _matched_priority_ids(
+                    item,
+                    selection_context=self.selection_context,
+                    minimum_priority_weight=self.config.minimum_priority_weight,
+                )
+                for item in approved
+            )
+        )
+        coverage_audit = {
+            "approved_priority_ids": sorted(str(item) for item in approved_priority_ids),
+            "active_high_weight_priorities_without_an_approved_candidate": sorted(
+                str(item) for item in eligible_priority_ids - approved_priority_ids
+            ),
+            "interpretation_limit": (
+                "This describes candidates found and approved in this run; it is not "
+                "proof that no relevant external development exists."
+            ),
+        }
         shortlist_payload = json.dumps(
             [item.model_dump(mode="json") for item in shortlist],
             ensure_ascii=False,
@@ -369,13 +446,17 @@ class WeeklyPipeline:
             prompt=(
                 f"Create the edition for {window_start.isoformat()} through "
                 f"{window_end.isoformat()}. Select no more than "
-                f"{self.config.max_topics} topics. Use this current Neural Alpha "
+                f"{self.config.max_topics} topics in a compact written decision "
+                "brief. Use this current Neural Alpha "
                 "context to explain the exact strategy/architecture impact and do "
                 "not generalize it into generic AI-fund relevance:\n"
-                f"{self._selection_context_payload()}\n\nApproved candidates:\n"
+                f"{self._selection_context_payload()}\n\nCoverage audit across all "
+                "candidates that passed hard gates:\n"
+                f"{json.dumps(coverage_audit, ensure_ascii=False, indent=2)}"
+                "\n\nEditor shortlist:\n"
                 f"{shortlist_payload}"
             ),
-            schema=WeeklyEdition,
+            schema=WeeklyBrief,
             use_web=False,
         )
         if len(edition.topics) > self.config.max_topics:

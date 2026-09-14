@@ -14,11 +14,11 @@ from .pipeline import PipelineConfig, WeeklyPipeline, load_selection_context
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Generate a Neural Alpha context-gated weekly AI briefing"
+        description="Generate a Neural Alpha context-gated weekly AI decision brief"
     )
     parser.add_argument("--as-of", type=date.fromisoformat, default=date.today())
     parser.add_argument("--output-root", type=Path, default=Path("editions"))
-    parser.add_argument("--max-topics", type=int, default=3)
+    parser.add_argument("--max-topics", type=int, default=2)
     parser.add_argument("--minimum-score", type=float, default=70.0)
     parser.add_argument(
         "--selection-context",
