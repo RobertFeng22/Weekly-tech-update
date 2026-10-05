@@ -1,0 +1,459 @@
+{
+  "edition": {
+    "window_start": "2026-09-28",
+    "window_end": "2026-10-04",
+    "editorial_note": "本期仅保留 1 个主题，因为它通过了已验证的优先级映射，并且对 Neural Alpha 当前的研究代理评测与控制边界有直接决策价值；其价值不在“又一个 agent benchmark”，而在把验收标准从表面轨迹转到可执行的终态与重复稳定性。以下选择不代表穷尽本窗口全部相关进展。",
+    "topics": [
+      {
+        "candidate_id": "na-2026-10-03-thinkingbox",
+        "title": "ThinkingBox：用终态与重复试验评估 tool-using agents",
+        "category": "agents_and_research",
+        "thesis": "ThinkingBox 把 agent 验收从“看起来完成了任务”推进到“外部状态是否被正确且稳定地改变”，这应直接改变 Neural Alpha 对可写入型研究工作流的验收合同。",
+        "neural_alpha_priority_ids": [
+          "decision_replay_and_attribution",
+          "agentic_research_and_control"
+        ],
+        "what_changed": "此前常见边界是：agent 评估多看 transcript、单次成功或 tool-call 合理性；新近已验证的增量是：ThinkingBox 对 507 个有状态工作流按终端 backend state 与副作用做可执行检查，并从相同干净初始状态重复运行 20 次。",
+        "why_it_matters": "当前约束是：Neural Alpha 需要让研究代理在受控条件下更新研究对象、证据记录与任务状态，但“回答合理”或“调用过工具”不足以证明系统真的把状态改对了。外部已验证增量是：ThinkingBox 显示，许多表面顺利的运行仍会留下错误终态或额外副作用，而且单次成功不等于可重复可靠。传导机制是：这类评估把正确性锚定到可冻结初始状态、可执行 postconditions（事后条件）与重复稳定性，从而把错误分解为推理错误、工具使用错误或状态写入错误。对应决策是：对任何会写入持久状态的研究 capability pack（能力包），主验收门槛应改为“状态可验证 + 可重复”，而不是 transcript-only 通过。二阶影响是架构上更应优先选择那些能定义明确 postconditions 的工作流，再谈提高自治程度。",
+        "recommended_next_step": "在内部做一个受限 eval slice：选 10–20 个冻结事件包，让研究代理只允许更新一个隔离的 research object store；对每个任务从相同初始状态重跑 20 次，记录终态正确率、非预期副作用率与 pass@20 一致性。若 transcript 通过但终态失败率显著，则把“可执行 postconditions”上升为写入型工作流的硬门槛。",
+        "what_to_watch": [
+          "是否出现对金融或高审计场景的复现实验，而不只是企业支持工作流",
+          "社区是否开始报告单次成功率与 repeated-run consistency 的显著差距",
+          "是否有后续方法专门检测隐藏副作用、脏状态继承或回滚失败",
+          "ThinkingBox 的开源实现是否足以支持自定义状态对象与确定性 replay"
+        ],
+        "evidence_boundaries": [
+          "现有任务主要是企业业务工作流，不是事件驱动投资研究任务",
+          "窗口内事件更接近公开发布与工程化包装，不是首次科学披露",
+          "外部结果证明评估设计有价值，但不自动证明其能提升真实投研 alpha",
+          "是否能迁移取决于内部是否能把研究对象与状态变化编码成可执行检查"
+        ],
+        "source_urls": [
+          "https://huggingface.co/blog/microsoft/thinkingbox",
+          "https://arxiv.org/abs/2608.19741",
+          "https://github.com/microsoft/thinkingbox"
+        ]
+      }
+    ],
+    "portfolio_judgment": "本期内容明显集中在同一决策簇：agentic_research_and_control 与 decision_replay_and_attribution。这种集中是合理的，因为本轮通过硬门槛的候选里，只有该主题同时改变了验收标准、控制边界与内部评测设计。覆盖缺口也需要直说：高权重且仍活跃的 event_intelligence、semantic_state_and_causal_mapping、expectation_and_priced_in、forecasting_and_calibration、portfolio_risk_and_execution 等优先级，在本窗口没有合格入选证据；这仅说明本次已发现并通过审核的候选不足，不代表这些方向没有外部进展。"
+  },
+  "candidates": [
+    {
+      "candidate_id": "na-2026-10-03-thinkingbox",
+      "title": "ThinkingBox: state-based, repeated-trial evaluation for tool-using agents",
+      "category": "agents_and_research",
+      "published_at": "2026-10-03",
+      "summary": "Microsoft and Hugging Face published ThinkingBox, an agent evaluation system that scores terminal backend state and side effects rather than transcript quality, and repeats each workflow 20 times from clean state. The accompanying post reports 507 stateful business workflows and highlights that many apparently clean tool-using runs still fail executable state checks.",
+      "novelty": "Shifts agent evaluation from response/text or tool-call proxies to environment-state correctness plus consistency under repetition, which is closer to fund-grade workflow validation than typical agent benchmarks.",
+      "admission_mode": "direct_build_leverage",
+      "capability_delta": "Provides a concrete harness design for evaluating whether agents leave the correct external state, detect hidden side effects, and remain reliable over repeated runs from identical initial conditions.",
+      "neural_alpha_relevance": "Directly relevant to bounded multi-agent research, deterministic side effects, replay, and live-small validation where transcript quality is insufficient evidence of correctness.",
+      "relevance_paths": [
+        {
+          "priority_id": "decision_replay_and_attribution",
+          "impact_type": "evaluation_method",
+          "action_type": "run_evaluation",
+          "current_constraint": "Workflow validation needs point-in-time evidence of whether an agent-produced action actually produced the intended external state, not merely a plausible trace.",
+          "external_delta": "A newly published benchmark grades terminal backend state and side effects with executable checks and repeats each task 20 times from identical clean state.",
+          "transmission_mechanism": "This converts agent assessment from proxy outputs to auditable environment-state outcomes, making error decomposition across reasoning, tool use, and side effects more falsifiable.",
+          "decision_or_test": "Build a Neural Alpha internal eval slice where research agents must update a frozen research object store; score final database state, unintended side effects, and pass@k consistency across 20 reruns on identical event packets."
+        },
+        {
+          "priority_id": "agentic_research_and_control",
+          "impact_type": "risk_control",
+          "action_type": "change_build_priority",
+          "current_constraint": "The platform direction requires deterministic side effects and safe degradation, but current agent eval patterns often over-credit successful-looking trajectories.",
+          "external_delta": "ThinkingBox explicitly demonstrates that clean tool use and no final error can still leave wrong backend state or extra effects, and treats repetition as a trust test.",
+          "transmission_mechanism": "This supports a control shift toward state-verifiable task classes and away from transcript-only acceptance criteria for research workflow automation.",
+          "decision_or_test": "Promote state-verifiable workflow tasks to the primary acceptance gate for any tool-using research capability pack; reject workflows whose success cannot be grounded in executable postconditions."
+        }
+      ],
+      "decision_takeaways": [
+        "Adopt state-based grading for any agent that writes to persistent stores or task state.",
+        "Track repeatability across reruns, not just single-run success.",
+        "Use executable postconditions as the acceptance contract for bounded autonomy."
+      ],
+      "limitations": [
+        "Enterprise support-style workflows are not finance-specific.",
+        "The publication is a blog summary; transfer to Neural Alpha tasks requires internal replication.",
+        "Reported tasks are business workflows rather than event-research objects or portfolio controls."
+      ],
+      "source_urls": [
+        "https://huggingface.co/blog/microsoft/thinkingbox"
+      ],
+      "primary_source_urls": [
+        "https://huggingface.co/blog/microsoft/thinkingbox"
+      ]
+    },
+    {
+      "candidate_id": "na-2026-09-29-nist-sp1353",
+      "title": "NIST SP 1353 draft operationalizes AI-assisted governance and evidence-mapping workflows",
+      "category": "policy_and_governance",
+      "published_at": "2026-09-29",
+      "summary": "NIST's page for SP 1353 notes an announcement tied to September 29, 2026 and presents an August 19, 2026 initial public draft quick-start guide for using AI in CSF 2.0 analysis and reporting. The guide includes structured prompt patterns, documented assumptions, gap recording, and evidence-mapping examples for governance and current-state profiling.",
+      "novelty": "Not a frontier-model event, but a credible public standard-setting artifact that turns AI-assisted analysis into documented workflows with explicit assumptions and evidence handling, which is directly useful for auditability design.",
+      "admission_mode": "strategic_constraint_or_threat",
+      "capability_delta": "Raises the bar for institutional expectations around documented prompts, assumptions, evidence artifacts, and reviewable AI-assisted outputs in governance contexts.",
+      "neural_alpha_relevance": "Useful as an external template for institutional-grade evidence handling, review records, and controllable AI-assisted analysis without revealing proprietary implementation.",
+      "relevance_paths": [
+        {
+          "priority_id": "data_rights_and_auditability",
+          "impact_type": "risk_control",
+          "action_type": "change_risk_or_governance",
+          "current_constraint": "Fund-grade AI research infrastructure needs reviewable evidence lineage and reproducible artifacts that can survive institutional scrutiny.",
+          "external_delta": "NIST's draft guide structures AI-assisted analysis around explicit prompts, mapped evidence, documented assumptions, and recorded gaps.",
+          "transmission_mechanism": "This provides a public reference pattern for how AI-assisted analytical outputs may be expected to preserve evidence, assumptions, and reviewer visibility.",
+          "decision_or_test": "Update internal research-record templates so each AI-assisted decision artifact explicitly stores evidence references, unresolved gaps, assumptions, and reviewer sign-off fields; test whether 20 recent event packets can be replayed without hidden assumptions."
+        },
+        {
+          "priority_id": "decision_replay_and_attribution",
+          "impact_type": "evaluation_method",
+          "action_type": "run_evaluation",
+          "current_constraint": "Replay quality degrades when assumptions and missing evidence are embedded in prose instead of structured records.",
+          "external_delta": "The guide's use cases emphasize documenting assumptions and observed evidence gaps as first-class outputs rather than implicit model behavior.",
+          "transmission_mechanism": "This suggests a concrete replay contract: preserve not only answers, but assumption registers and evidence-missing flags at decision time.",
+          "decision_or_test": "Add assumption and evidence-gap extraction to the decision contract; falsify usefulness by checking whether post hoc reviewers can distinguish wrong interpretation from missing-source conditions on a held-out packet set."
+        }
+      ],
+      "decision_takeaways": [
+        "Treat assumption registers and evidence-gap fields as required artifacts, not optional commentary.",
+        "Borrow public governance patterns where they improve auditability without overfitting to cybersecurity use cases."
+      ],
+      "limitations": [
+        "The underlying draft itself was published on August 19, 2026; the in-window signal is the September 29, 2026 announcement/update on the NIST page.",
+        "It is a governance guide, not an evaluation benchmark for finance agents.",
+        "Applicability is inferential rather than task-validated for event-driven investing."
+      ],
+      "source_urls": [
+        "https://csrc.nist.gov/pubs/sp/1353/ipd"
+      ],
+      "primary_source_urls": [
+        "https://csrc.nist.gov/pubs/sp/1353/ipd"
+      ]
+    },
+    {
+      "candidate_id": "na-2026-10-04-eu-transparency-code",
+      "title": "EU AI Act transparency code becomes an operational compliance path for labeling and machine-readable marking",
+      "category": "policy_and_governance",
+      "published_at": "2026-10-04",
+      "summary": "The European Commission page on the Code of Practice on Transparency of AI-generated Content states that Article 50 transparency obligations have applied since August 2, 2026 and that the code is an adequate voluntary tool to demonstrate compliance. The page details provider obligations for machine-readable marking and detection and deployer obligations for labeling certain AI-generated public-interest text and deepfakes.",
+      "novelty": "This is a deployability-boundary development: not about model capability, but about external provenance and labeling obligations becoming concrete, recognized compliance pathways.",
+      "admission_mode": "strategic_constraint_or_threat",
+      "capability_delta": "Makes provenance, labeling, and marking practices more operationally important for any outward-facing AI-generated content or research publication process touching EU obligations.",
+      "neural_alpha_relevance": "Relevant to provenance and institutional auditability, especially if research outputs, public communications, or distributed artifacts could cross into regulated labeling expectations.",
+      "relevance_paths": [
+        {
+          "priority_id": "data_rights_and_auditability",
+          "impact_type": "regulatory_constraint",
+          "action_type": "change_risk_or_governance",
+          "current_constraint": "The system needs durable provenance and evidence handling, but outward-facing labeling and authenticity requirements can tighten faster than internal workflows anticipate.",
+          "external_delta": "The Commission states Article 50 transparency obligations are legal requirements and the code is an accepted voluntary route to demonstrate compliance, including machine-readable marking and labeling practices.",
+          "transmission_mechanism": "This raises the value of preserving origin metadata and generation status for externally shared AI-assisted artifacts, even when the core fund workflow is internal.",
+          "decision_or_test": "Define a public-artifact provenance policy: any externally shared AI-generated or AI-edited memo, chart, or media derivative must preserve generation metadata and review status; test compliance on all outward-facing artifacts for one month."
+        },
+        {
+          "priority_id": "fund_operations_and_regulation",
+          "impact_type": "regulatory_constraint",
+          "action_type": "watch_with_trigger",
+          "current_constraint": "AI-specific regulatory readiness is a watch item unless a rule directly changes deployable processes or institutional acceptance.",
+          "external_delta": "The EU page formalizes a recognized code-based compliance route and specifies obligations around marking, detection, and disclosure.",
+          "transmission_mechanism": "If Neural Alpha expands EU-facing content distribution or investor communications involving generative outputs, these rules could become operational rather than theoretical.",
+          "decision_or_test": "Trigger a compliance design review if Neural Alpha plans EU-distributed AI-generated public-interest text, synthetic media, or external AI-assisted publications that fall within Article 50 labeling scope."
+        }
+      ],
+      "decision_takeaways": [
+        "Preserve provenance metadata on any external AI-assisted artifact.",
+        "Separate internal research use from external distribution pathways that may trigger labeling duties."
+      ],
+      "limitations": [
+        "The page itself shows a last update of July 31, 2026; inclusion here depends on the legal-operational relevance during the requested window rather than a fresh technical release inside the week.",
+        "Applicability depends on whether outputs are externally distributed into relevant jurisdictions.",
+        "Not a direct change to internal alpha-generation capability."
+      ],
+      "source_urls": [
+        "https://digital-strategy.ec.europa.eu/en/policies/code-practice-ai-generated-content"
+      ],
+      "primary_source_urls": [
+        "https://digital-strategy.ec.europa.eu/en/policies/code-practice-ai-generated-content"
+      ]
+    }
+  ],
+  "evaluations": [
+    {
+      "candidate_id": "na-2026-10-03-thinkingbox",
+      "factual_accuracy": 5,
+      "evidence_strength": 5,
+      "frontier_significance": 4,
+      "authoritative_primary_sufficient": false,
+      "admission_mode_supported": true,
+      "engineering_only": false,
+      "generic_relevance_only": false,
+      "validated_priority_ids": [
+        "decision_replay_and_attribution",
+        "agentic_research_and_control"
+      ],
+      "current_priority_relevance": 5,
+      "strategy_impact": 4,
+      "architecture_impact": 4,
+      "relevance_path_quality": 5,
+      "transfer_readiness": 5,
+      "business_decision_value": 5,
+      "strategic_magnitude": 4,
+      "novelty": 4,
+      "confidence": 5,
+      "red_flags": [],
+      "counter_evidence": [
+        "The October 3, 2026 Hugging Face post is a release/write-up, while the underlying paper was posted earlier on August 20, 2026, so the in-window event is packaging/open release rather than first scientific disclosure.",
+        "The benchmark covers customer-support and business-system workflows, not event-driven investment research, so transfer to fund workflows remains unproven until internally replicated.",
+        "Some performance details differ between sources because the blog reports a broader model table than the original paper abstract; this does not undermine the central claim about state-based evaluation and repeated trials."
+      ],
+      "rationale": "Verified central claim: the October 3, 2026 Hugging Face/Microsoft post presents ThinkingBox as an agent evaluation system that grades terminal backend state and side effects rather than transcript quality, and it explicitly states that every task is run 20 times from identical clean backend state. The post also states the benchmark contains 507 stateful business workflows and gives concrete evidence that many runs with clean termination and valid state-changing tool use still fail executable checks. Independent primary/near-primary corroboration exists in the arXiv paper and Microsoft write-up, which describe isolated MCP-compatible tool sessions, executable checks over terminal backend state, and the gap between one-off success and reliable repeated completion. The surviving mapping to decision_replay_and_attribution is specific because it changes the acceptance contract for workflow evaluation from traces/tool calls to frozen initial state plus executable postconditions and repeated-run consistency, which directly supports falsifiable replay and error decomposition. The surviving mapping to agentic_research_and_control is also specific because it supports bounded-control gating for tool-using agents: only workflows with verifiable postconditions should qualify for higher autonomy, and repeated-trial instability becomes a measurable correlated-failure signal. Most important failure mode: Neural Alpha could over-transfer from enterprise support workflows to fund research tasks; if internal object-store and evidence-update workflows are not encoded with similarly executable postconditions, the benchmark design may inspire but not materially improve production evaluation.",
+      "verified_source_urls": [
+        "https://huggingface.co/blog/microsoft/thinkingbox",
+        "https://arxiv.org/abs/2608.19741",
+        "https://github.com/microsoft/thinkingbox",
+        "https://commandline.microsoft.com/thinkingbox-bench-agent-benchmarking/"
+      ],
+      "verified_primary_source_urls": [
+        "https://huggingface.co/blog/microsoft/thinkingbox",
+        "https://arxiv.org/abs/2608.19741",
+        "https://github.com/microsoft/thinkingbox"
+      ]
+    },
+    {
+      "candidate_id": "na-2026-09-29-nist-sp1353",
+      "factual_accuracy": 4,
+      "evidence_strength": 4,
+      "frontier_significance": 2,
+      "authoritative_primary_sufficient": false,
+      "admission_mode_supported": true,
+      "engineering_only": false,
+      "generic_relevance_only": false,
+      "validated_priority_ids": [
+        "data_rights_and_auditability",
+        "decision_replay_and_attribution"
+      ],
+      "current_priority_relevance": 3,
+      "strategy_impact": 2,
+      "architecture_impact": 3,
+      "relevance_path_quality": 4,
+      "transfer_readiness": 4,
+      "business_decision_value": 3,
+      "strategic_magnitude": 2,
+      "novelty": 2,
+      "confidence": 4,
+      "red_flags": [],
+      "counter_evidence": [
+        "The actual draft publication date is August 19, 2026, outside the evaluation window; the September 29, 2026 text on the page is an announcement note about terminology updates, not the substantive release of the guide.",
+        "The artifact is a cybersecurity quick-start guide with illustrative prompts and notional use cases, not a fund or investment-research standard and not an empirical benchmark.",
+        "The claimed institutional bar-raising effect is inferential; no evidence here shows adoption by allocators, regulators, or auditors in hedge-fund AI workflows."
+      ],
+      "rationale": "Verified central fact: NIST SP 1353 exists as an Initial Public Draft titled 'Quick-Start Guide for Using Artificial Intelligence (AI) for CSF Analysis and Reporting,' published August 19, 2026, with use cases that explicitly include documenting assumptions and recording observed gaps in interviews and evidence. The page also includes a September 29, 2026 announcement tied to terminology updates, but that is not the substantive publication event. Because the candidate frames the in-window signal around the page announcement while relying on the August draft for substance, the claim is only partially window-supported. The mapping to data_rights_and_auditability survives at moderate strength because the guide provides a public, authoritative pattern for preserving prompts, assumptions, evidence references, and gaps as reviewable artifacts; that is relevant to institutional auditability even outside cybersecurity. The mapping to decision_replay_and_attribution also survives at moderate strength because explicit assumption registers and evidence-gap fields can strengthen replay contracts and post hoc attribution of failures to missing evidence versus wrong interpretation. Most important failure mode: this could be mistaken for a direct external requirement on fund research systems when it is actually a domain-specific quick-start guide with illustrative, non-prescriptive workflows.",
+      "verified_source_urls": [
+        "https://csrc.nist.gov/pubs/sp/1353/ipd"
+      ],
+      "verified_primary_source_urls": [
+        "https://csrc.nist.gov/pubs/sp/1353/ipd"
+      ]
+    },
+    {
+      "candidate_id": "na-2026-10-04-eu-transparency-code",
+      "factual_accuracy": 3,
+      "evidence_strength": 3,
+      "frontier_significance": 1,
+      "authoritative_primary_sufficient": false,
+      "admission_mode_supported": false,
+      "engineering_only": false,
+      "generic_relevance_only": true,
+      "validated_priority_ids": [],
+      "current_priority_relevance": 1,
+      "strategy_impact": 1,
+      "architecture_impact": 1,
+      "relevance_path_quality": 1,
+      "transfer_readiness": 1,
+      "business_decision_value": 1,
+      "strategic_magnitude": 1,
+      "novelty": 1,
+      "confidence": 4,
+      "red_flags": [
+        "The cited Commission page appears to predate the evaluation window and the candidate itself acknowledges a page update of July 31, 2026, so the claimed October 4, 2026 event date is not supported by the verified source."
+      ],
+      "counter_evidence": [
+        "The page does verify that Article 50 transparency obligations have applied since August 2, 2026, and that the code is a voluntary tool recognized as adequate to demonstrate compliance, but that is not an in-window development.",
+        "Applicability to Neural Alpha depends on outward-facing EU-distributed AI-generated public-interest text or deepfakes; the provided context centers internal research and investment workflows, making the mapping contingent and weak.",
+        "The candidate's relevance is largely generic compliance hygiene rather than a named current strategy or architecture constraint."
+      ],
+      "rationale": "Verified only a narrower fact: the European Commission page states that Article 50 transparency obligations apply from August 2, 2026, that the code supports compliance, and that the Commission and AI Board confirmed it as an adequate voluntary tool to demonstrate compliance. However, the candidate's dated event framing is not supported by the verified page; the source itself does not establish a fresh October 4, 2026 operational milestone. More importantly, the proposed relevance path depends on hypothetical future outward-facing communications rather than a current named constraint in the supplied context. That makes the mapping generic and speculative rather than specific to the active strategy wedge or current architecture contracts. Most important failure mode: admitting this item would dilute the briefing with broad compliance relevance that could apply to many firms and does not presently change a concrete Neural Alpha build, evaluation, or investment decision.",
+      "verified_source_urls": [
+        "https://digital-strategy.ec.europa.eu/en/policies/code-practice-ai-generated-content"
+      ],
+      "verified_primary_source_urls": [
+        "https://digital-strategy.ec.europa.eu/en/policies/code-practice-ai-generated-content"
+      ]
+    }
+  ],
+  "approved": [
+    {
+      "candidate": {
+        "candidate_id": "na-2026-10-03-thinkingbox",
+        "title": "ThinkingBox: state-based, repeated-trial evaluation for tool-using agents",
+        "category": "agents_and_research",
+        "published_at": "2026-10-03",
+        "summary": "Microsoft and Hugging Face published ThinkingBox, an agent evaluation system that scores terminal backend state and side effects rather than transcript quality, and repeats each workflow 20 times from clean state. The accompanying post reports 507 stateful business workflows and highlights that many apparently clean tool-using runs still fail executable state checks.",
+        "novelty": "Shifts agent evaluation from response/text or tool-call proxies to environment-state correctness plus consistency under repetition, which is closer to fund-grade workflow validation than typical agent benchmarks.",
+        "admission_mode": "direct_build_leverage",
+        "capability_delta": "Provides a concrete harness design for evaluating whether agents leave the correct external state, detect hidden side effects, and remain reliable over repeated runs from identical initial conditions.",
+        "neural_alpha_relevance": "Directly relevant to bounded multi-agent research, deterministic side effects, replay, and live-small validation where transcript quality is insufficient evidence of correctness.",
+        "relevance_paths": [
+          {
+            "priority_id": "decision_replay_and_attribution",
+            "impact_type": "evaluation_method",
+            "action_type": "run_evaluation",
+            "current_constraint": "Workflow validation needs point-in-time evidence of whether an agent-produced action actually produced the intended external state, not merely a plausible trace.",
+            "external_delta": "A newly published benchmark grades terminal backend state and side effects with executable checks and repeats each task 20 times from identical clean state.",
+            "transmission_mechanism": "This converts agent assessment from proxy outputs to auditable environment-state outcomes, making error decomposition across reasoning, tool use, and side effects more falsifiable.",
+            "decision_or_test": "Build a Neural Alpha internal eval slice where research agents must update a frozen research object store; score final database state, unintended side effects, and pass@k consistency across 20 reruns on identical event packets."
+          },
+          {
+            "priority_id": "agentic_research_and_control",
+            "impact_type": "risk_control",
+            "action_type": "change_build_priority",
+            "current_constraint": "The platform direction requires deterministic side effects and safe degradation, but current agent eval patterns often over-credit successful-looking trajectories.",
+            "external_delta": "ThinkingBox explicitly demonstrates that clean tool use and no final error can still leave wrong backend state or extra effects, and treats repetition as a trust test.",
+            "transmission_mechanism": "This supports a control shift toward state-verifiable task classes and away from transcript-only acceptance criteria for research workflow automation.",
+            "decision_or_test": "Promote state-verifiable workflow tasks to the primary acceptance gate for any tool-using research capability pack; reject workflows whose success cannot be grounded in executable postconditions."
+          }
+        ],
+        "decision_takeaways": [
+          "Adopt state-based grading for any agent that writes to persistent stores or task state.",
+          "Track repeatability across reruns, not just single-run success.",
+          "Use executable postconditions as the acceptance contract for bounded autonomy."
+        ],
+        "limitations": [
+          "Enterprise support-style workflows are not finance-specific.",
+          "The publication is a blog summary; transfer to Neural Alpha tasks requires internal replication.",
+          "Reported tasks are business workflows rather than event-research objects or portfolio controls."
+        ],
+        "source_urls": [
+          "https://huggingface.co/blog/microsoft/thinkingbox"
+        ],
+        "primary_source_urls": [
+          "https://huggingface.co/blog/microsoft/thinkingbox"
+        ]
+      },
+      "evaluation": {
+        "candidate_id": "na-2026-10-03-thinkingbox",
+        "factual_accuracy": 5,
+        "evidence_strength": 5,
+        "frontier_significance": 4,
+        "authoritative_primary_sufficient": false,
+        "admission_mode_supported": true,
+        "engineering_only": false,
+        "generic_relevance_only": false,
+        "validated_priority_ids": [
+          "decision_replay_and_attribution",
+          "agentic_research_and_control"
+        ],
+        "current_priority_relevance": 5,
+        "strategy_impact": 4,
+        "architecture_impact": 4,
+        "relevance_path_quality": 5,
+        "transfer_readiness": 5,
+        "business_decision_value": 5,
+        "strategic_magnitude": 4,
+        "novelty": 4,
+        "confidence": 5,
+        "red_flags": [],
+        "counter_evidence": [
+          "The October 3, 2026 Hugging Face post is a release/write-up, while the underlying paper was posted earlier on August 20, 2026, so the in-window event is packaging/open release rather than first scientific disclosure.",
+          "The benchmark covers customer-support and business-system workflows, not event-driven investment research, so transfer to fund workflows remains unproven until internally replicated.",
+          "Some performance details differ between sources because the blog reports a broader model table than the original paper abstract; this does not undermine the central claim about state-based evaluation and repeated trials."
+        ],
+        "rationale": "Verified central claim: the October 3, 2026 Hugging Face/Microsoft post presents ThinkingBox as an agent evaluation system that grades terminal backend state and side effects rather than transcript quality, and it explicitly states that every task is run 20 times from identical clean backend state. The post also states the benchmark contains 507 stateful business workflows and gives concrete evidence that many runs with clean termination and valid state-changing tool use still fail executable checks. Independent primary/near-primary corroboration exists in the arXiv paper and Microsoft write-up, which describe isolated MCP-compatible tool sessions, executable checks over terminal backend state, and the gap between one-off success and reliable repeated completion. The surviving mapping to decision_replay_and_attribution is specific because it changes the acceptance contract for workflow evaluation from traces/tool calls to frozen initial state plus executable postconditions and repeated-run consistency, which directly supports falsifiable replay and error decomposition. The surviving mapping to agentic_research_and_control is also specific because it supports bounded-control gating for tool-using agents: only workflows with verifiable postconditions should qualify for higher autonomy, and repeated-trial instability becomes a measurable correlated-failure signal. Most important failure mode: Neural Alpha could over-transfer from enterprise support workflows to fund research tasks; if internal object-store and evidence-update workflows are not encoded with similarly executable postconditions, the benchmark design may inspire but not materially improve production evaluation.",
+        "verified_source_urls": [
+          "https://huggingface.co/blog/microsoft/thinkingbox",
+          "https://arxiv.org/abs/2608.19741",
+          "https://github.com/microsoft/thinkingbox",
+          "https://commandline.microsoft.com/thinkingbox-bench-agent-benchmarking/"
+        ],
+        "verified_primary_source_urls": [
+          "https://huggingface.co/blog/microsoft/thinkingbox",
+          "https://arxiv.org/abs/2608.19741",
+          "https://github.com/microsoft/thinkingbox"
+        ]
+      }
+    }
+  ],
+  "gate_results": [
+    {
+      "candidate_id": "na-2026-10-03-thinkingbox",
+      "approved": true,
+      "rejection_reasons": [],
+      "matched_priority_ids": [
+        "agentic_research_and_control",
+        "decision_replay_and_attribution"
+      ]
+    },
+    {
+      "candidate_id": "na-2026-09-29-nist-sp1353",
+      "approved": false,
+      "rejection_reasons": [
+        "insufficient_verified_sources",
+        "current_priority_relevance_below_4",
+        "strategy_or_architecture_impact_below_4",
+        "strategic_constraint_magnitude_below_4",
+        "weighted_score_below_threshold"
+      ],
+      "matched_priority_ids": [
+        "data_rights_and_auditability",
+        "decision_replay_and_attribution"
+      ]
+    },
+    {
+      "candidate_id": "na-2026-10-04-eu-transparency-code",
+      "approved": false,
+      "rejection_reasons": [
+        "insufficient_verified_sources",
+        "factual_accuracy_below_4",
+        "admission_mode_not_supported",
+        "generic_relevance_only",
+        "no_validated_current_priority_match",
+        "current_priority_relevance_below_4",
+        "strategy_or_architecture_impact_below_4",
+        "relevance_path_quality_below_4",
+        "business_decision_value_below_3",
+        "strategic_constraint_magnitude_below_4",
+        "unresolved_red_flags",
+        "weighted_score_below_threshold"
+      ],
+      "matched_priority_ids": []
+    }
+  ],
+  "selection_context": {
+    "version": "neural-alpha-private-context-2026-09-09-v1",
+    "as_of": "2026-09-09",
+    "sha256": "68781ac46954f9f476ebc5988ec3a041019862e6f33386ef4abed755d052a48e"
+  },
+  "candidate_count": 3,
+  "evaluation_count": 3,
+  "configuration": {
+    "selection_profile": "neural_alpha_contextual_decision_brief_v3",
+    "max_topics": 2,
+    "minimum_score": 70.0,
+    "minimum_verified_sources": 2,
+    "minimum_frontier_significance": 4,
+    "minimum_current_priority_relevance": 4,
+    "minimum_strategy_or_architecture_impact": 4,
+    "minimum_relevance_path_quality": 4,
+    "minimum_transfer_readiness": 4,
+    "minimum_strategic_constraint_magnitude": 4,
+    "minimum_business_decision_value": 3,
+    "minimum_priority_weight": 4,
+    "maximum_context_age_days": 60,
+    "discovery_max_tool_calls": 24,
+    "evaluation_max_tool_calls": 40,
+    "discovery_model": "gpt-5.4",
+    "evaluation_model": "gpt-5.4",
+    "editor_model": "gpt-5.4"
+  }
+}
